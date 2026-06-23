@@ -294,10 +294,6 @@ def hitung_puc_karyawan_v19(nama_karyawan, usia_sekarang, masa_kerja_sekarang, g
                 dx_resign_val = float(df_tm.loc[usia_proyeksi_bulat, 'wx'])
             elif 'wx_resign' in df_tm.columns:
                 dx_resign_val = float(df_tm.loc[usia_proyeksi_bulat, 'wx_resign'])
-            
-            # Sesuaikan juga untuk cacat dan resign jika menggunakan kolom komutasi serupa
-            # dx_cacat_val = float(df_tm.loc[usia_proyeksi_bulat, 'dx_cacat']) if 'dx_cacat' in df_tm.columns else 0.00
-            # dx_resign_val = float(df_tm.loc[usia_proyeksi_bulat, 'dx_resign']) if 'dx_resign' in df_tm.columns else 0.00
 
         # Rasio Peluang Probabilitas Decrement Tahun t dibanding lx Awal
         rasio_p_meninggal = (dx_meninggal_val / lx_sekarang) if lx_sekarang > 0 else 0.00
@@ -322,41 +318,39 @@ def hitung_puc_karyawan_v19(nama_karyawan, usia_sekarang, masa_kerja_sekarang, g
         pembagi_skala = masa_kerja_proyeksi
         faktor_puc_skala = round((masa_kerja_sekarang / pembagi_skala), 2) if pembagi_skala > 0 else 0.00
 
-        hitung_uang_duka = gaji_sekarang * (1 + uang_duka)
-
-        hitung_nilai_meninggal = round(f_meninggal_t * rasio_p_meninggal * (gaji_sekarang * (1 + uang_duka)) * faktor_gaji_kumulatif * faktor_diskonto_kumulatif, 2)
-        hitung_nilai_cacat = round(f_cacat_t * rasio_p_cacat * (gaji_sekarang * (1 + uang_duka)) * faktor_gaji_kumulatif * faktor_diskonto_kumulatif, 2)
-        hitung_nilai_resign_1 = f_resign_t * rasio_p_resign * hitung_uang_duka
+        hitung_nilai_meninggal = f_meninggal_t * rasio_p_meninggal * (gaji_sekarang * (1 + uang_duka)) * faktor_gaji_kumulatif * faktor_diskonto_kumulatif
+        hitung_nilai_cacat = f_cacat_t * rasio_p_cacat * (gaji_sekarang * (1 + uang_duka)) * faktor_gaji_kumulatif * faktor_diskonto_kumulatif
+        hitung_nilai_resign_1 = f_resign_t * rasio_p_resign * gaji_sekarang * (1 + uang_duka)
         hitung_nilai_resign = hitung_nilai_resign_1 * faktor_gaji_kumulatif * faktor_diskonto_kumulatif_resign
 
         # 5. REPLIKASI PERSIS RUMUS EXCEL (Ditambahkan komponen Uang Duka untuk Meninggal)
-        nilai_meninggal_t = round((hitung_nilai_meninggal / pembagi_skala) * masa_kerja_proyeksi_sesudah, 2)
-        nilai_cacat_t = round((hitung_nilai_cacat / pembagi_skala) * masa_kerja_proyeksi_sesudah, 2)
-        nilai_resign_t = round((hitung_nilai_resign / pembagi_skala) * masa_kerja_proyeksi_sesudah, 2)
+        nilai_meninggal_t = int(round((hitung_nilai_meninggal / pembagi_skala) * masa_kerja_proyeksi_sesudah))
+        nilai_cacat_t = int(round((hitung_nilai_cacat / pembagi_skala) * masa_kerja_proyeksi_sesudah))
+        nilai_resign_t = int(round((hitung_nilai_resign / pembagi_skala) * masa_kerja_proyeksi_sesudah))
 
         # Akumulasikan ke Grand Total Karyawan
-        total_proyeksi_meninggal += nilai_meninggal_t
-        total_proyeksi_cacat += nilai_cacat_t
-        total_proyeksi_resign += nilai_resign_t
+        total_proyeksi_meninggal += int(round(nilai_meninggal_t))
+        total_proyeksi_cacat += int(round(nilai_cacat_t))
+        total_proyeksi_resign += int(round(nilai_resign_t))
 
         print("------------------------START PROYEKSI MANFAAT--------------------------")
-        print(f"DEBUG {nama_karyawan} | PROYEKSI TAHUN {t} - Usia: {usia_proyeksi:.2f} | Masa Kerja Skg: {masa_kerja_sekarang:.2f} | Masa Kerja Proyeksi Sesudah: {masa_kerja_proyeksi_sesudah:.2f}")
+        print(f"DEBUG {nama_karyawan} | PROYEKSI TAHUN {t} - Usia: {usia_proyeksi_bulat:.2f} | Masa Kerja Skg: {masa_kerja_sekarang:.2f} | Masa Kerja Proyeksi Sesudah: {masa_kerja_proyeksi_sesudah:.2f}")
         # print(f"       DX MENINGGAL VAL: {dx_meninggal_val} | LX SKG: {lx_sekarang}")
         print(f"       Faktor UUCK Meninggal: {f_meninggal_t} | Rasio Meninggal: {rasio_p_meninggal}")
         print(f"       Faktor UUCK Cacat: {f_cacat_t} | Rasio Cacat: {rasio_p_cacat}")
         print(f"       Faktor UUCK Resign: {f_resign_t} | Rasio Resign: {rasio_p_resign}")
         print(f"       Diskonto: {tingkat_bunga_t:.4f} | Faktor Diskonto Proyeksi: {faktor_diskonto:.4f} | Faktor Diskonto Kumulatif: {faktor_diskonto_kumulatif:.4f} | Faktor Diskonto Kumulatif Resign: {faktor_diskonto_kumulatif_resign:.4f}")
         print(f"       Pembagi Skala: {pembagi_skala} | Faktor Gaji Kumulatif: {faktor_gaji_kumulatif} | Faktor PUC Skala: {faktor_puc_skala}")
-        print(f"       Gaji Skg: {gaji_sekarang} | Hitung Uang Duka: {hitung_uang_duka}")
+        print(f"       Gaji Skg: {gaji_sekarang}")
         print(f"       Hitung Proyeksi Meninggal: {hitung_nilai_meninggal}")
-        print(f"       Nilai Proyeksi Meninggal: {nilai_meninggal_t}")
+        print(f"       Nilai Proyeksi Meninggal: {int(round(nilai_meninggal_t))}")
         print(f"       Total Nilai Proyeksi Meninggal: {total_proyeksi_meninggal}")
         print(f"       Hitung Proyeksi Cacat: {hitung_nilai_cacat}")
-        print(f"       Nilai Proyeksi Cacat: {nilai_cacat_t}")
+        print(f"       Nilai Proyeksi Cacat: {int(round(nilai_cacat_t))}")
         print(f"       Total Nilai Proyeksi Cacat: {total_proyeksi_cacat}")
         print(f"       Hitung Proyeksi Resign 1: {hitung_nilai_resign_1}")
         print(f"       Hitung Proyeksi Resign 2: {hitung_nilai_resign}")
-        print(f"       Nilai Proyeksi Resign: {nilai_resign_t}")
+        print(f"       Nilai Proyeksi Resign: {int(round(nilai_resign_t))}")
         print(f"       Total Nilai Proyeksi Resign: {total_proyeksi_resign}")
         print("------------------------------------------------------------------------")
 
@@ -364,15 +358,7 @@ def hitung_puc_karyawan_v19(nama_karyawan, usia_sekarang, masa_kerja_sekarang, g
     # LOGIKA ATRIBUSI BERDASARKAN USIA FILTER (< UPN - 24)
     # =========================================================================
     usia_batas_atribusi = upn - 24.0
-    # print(f"       Usia Sekarang: {usia_sekarang} | Usia Batas Atribusi: {usia_batas_atribusi}")
-    # if usia_sekarang < usia_batas_atribusi:
-    #     total_proyeksi_meninggal = 0.0
-    #     total_proyeksi_cacat = 0.0
-    #     total_proyeksi_resign = 0.0
     
-    # print(f"       Detail Proyeksi Masuk Logika Atribusi - Meninggal: {total_proyeksi_meninggal} | Cacat: {total_proyeksi_cacat} | Resign: {total_proyeksi_resign}")
-
-    # Perhitungan Komponen Utama Pensiun Normal (Sama seperti v16)
     selisih_usia = upn - usia_sekarang
     sisa_masa_kerja_depan = max(0.0, min(24.0, selisih_usia))
     total_aktual = masa_kerja_sekarang + sisa_masa_kerja_depan
@@ -456,7 +442,6 @@ def hitung_puc_karyawan_v19(nama_karyawan, usia_sekarang, masa_kerja_sekarang, g
 
     print("------------------------HITUNG PUC KARYAWAN--------------------------")
     print(f"DEBUG: {nama_karyawan} | Usia: {usia_sekarang} | Masa Kerja: {masa_kerja_sekarang} | Gaji: {gaji_sekarang} | DBO: {pbo_total} | CSC: {csc}")
-    # print(f"       Detail Proyeksi - Meninggal: {total_proyeksi_meninggal} | Cacat: {total_proyeksi_cacat} | Resign: {total_proyeksi_resign} | Pensiun: {total_proyeksi_pensiun}")
     print(f"       Detail Proyeksi - Meninggal: {total_proyeksi_meninggal} | Cacat: {total_proyeksi_cacat} | Resign: {total_proyeksi_resign}")
     print(f"       Proyeksi Upah: {gaji_proyeksi_pensiun} | Proyeksi UUK-13/2003: {total_manfaat_proyeksi}")
     print(f"       Unit Manfaat Pensiun: {unit_manfaat_pensiun} | Unit Manfaat Meninggal: {unit_manfaat_meninggal} | Unit Manfaat Cacat: {unit_manfaat_cacat} | Unit Manfaat Resign: {unit_manfaat_resign}")
