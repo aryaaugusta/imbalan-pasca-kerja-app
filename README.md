@@ -23,7 +23,8 @@ Pastikan Anda sudah berada di dalam folder proyek melalui Terminal / Command Pro
 ## 🛠️ Logika Kalkulasi Penting
 
 ### 1. Rumus Proyeksi & Diskonto
-Untuk komponen Meninggal dan Cacat, faktor diskonto kumulatif dihitung berbasis tahun berjalan:
+Untuk komponen Meninggal dan Cacat, faktor diskonto kumulatif dihitung berbasis tahun berjalan menggunakan rumus:
+
 $$\text{Faktor Diskonto Kumulatif} = \left(\frac{1}{1 + \text{spot\_rate}_t}\right)^t$$
 
 Khusus untuk komponen **Mengundurkan Diri (Resign)**, perhitungan tahun berjalan ($t=0$) diabaikan/di-force ke angka `0`, dan akumulasi baru dihitung secara normal dari tahun pertama ($t \ge 1$).
