@@ -1,6 +1,10 @@
-# Smart Budget Insight - Actuarial Core Engine (PSAK 24 / UUCK)
+# Aplikasi Perhitungan Imbalan Pasca Kerja Karyawan (PSAK 24 / UUCK)
 
 Repositori ini berisi core engine berbasis Python untuk melakukan otomasi proyeksi dan perhitungan kewajiban imbalan pasca-kerja (kewajiban imbalan pasti) sesuai dengan regulasi **PSAK 24** dan ketentuan **Undang-Undang Cipta Kerja (UUCK)** menggunakan metode **Projected Unit Credit (PUC)**.
+
+## 💻 Cara Menjalankan Aplikasi
+
+Pastikan Anda sudah berada di dalam folder proyek melalui Terminal / Command Prompt lalu ketikan : **py -m streamlit run app.py**
 
 ## 🚀 Fitur Utama
 - **Metode Atribusi PUC**: Mengimplementasikan perhitungan skala atribusi masa kerja secara proporsional (`masa_kerja_sekarang / masa_kerja_proyeksi`).
@@ -14,7 +18,7 @@ Repositori ini berisi core engine berbasis Python untuk melakukan otomasi proyek
 - **Hasil Akhir Presisi**: Semua output keuangan (DBO, CSC, Nilai Kini) disajikan dalam angka bulat utuh (integer) sesuai standar kertas kerja akuntansi.
 
 ## 📂 Struktur Modul & Berkas
-- `perhitungan_imbalan_pasca_kerja_kry.py`: Script inti yang memuat fungsi pembacaan data (`muat_template_uuck`, `muat_tabel_mortalita_dinamis`, `muat_tabel_spot_rate`) dan fungsi kalkulasi PUC (`hitung_puc_karyawan_v19`).
+- `app.py`: Script inti yang memuat fungsi pembacaan data (`muat_template_uuck`, `muat_tabel_mortalita_dinamis`, `muat_tabel_spot_rate`) dan fungsi kalkulasi PUC (`hitung_puc_karyawan_v19`).
 
 ## 🛠️ Logika Kalkulasi Penting
 
@@ -30,8 +34,8 @@ Fungsi `hitung_puc_karyawan_v19` mengembalikan nilai yang sudah dibersihkan dari
 "dbo": int(round(pbo_total)),
 "csc": int(round(csc))
 
-## 💻 Cara Penggunaan (Sebagai Modul)
-Integrasikan fungsi utama ke dalam skrip dashboard (Streamlit) atau pipeline data Anda sebagai berikut:
-
-Pastikan Anda sudah berada di dalam folder proyek melalui Terminal / Command Prompt lalu ketikan :
-py -m streamlit run app.py
+### 2. Pembulatan Hasil Akhir
+Fungsi `hitung_puc_karyawan_v19` mengembalikan nilai yang sudah dibersihkan dari angka desimal (koma) menggunakan pembulatan terdekat:
+```python
+"dbo": int(round(pbo_total)),
+"csc": int(round(csc)).
