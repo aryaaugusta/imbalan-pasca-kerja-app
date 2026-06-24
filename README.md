@@ -16,7 +16,7 @@ Pastikan Anda sudah berada di dalam folder proyek melalui Terminal / Command Pro
 - **Spot Rate / Yield Curve Dinamis**: Pembacaan tingkat diskonto secara spesifik per tenor berdasarkan pembulatan bawah `INT()` masa kerja ke depan.
 - **VLOOKUP TRUE Replication**: Pencarian indeks tabel UUCK yang fleksibel dan akurat berbasis algoritma pencarian baris terdekat (VLOOKUP pendekatan eksak/interpolasi aktuaria).
 - **Hasil Akhir Presisi**: Semua output keuangan (DBO, CSC, Nilai Kini) disajikan dalam angka bulat utuh (integer) sesuai standar kertas kerja akuntansi.
-
+<!-- 
 ## 📂 Struktur Modul & Berkas
 - `app.py`: Script inti yang memuat fungsi pembacaan data (`muat_template_uuck`, `muat_tabel_mortalita_dinamis`, `muat_tabel_spot_rate`) dan fungsi kalkulasi PUC (`hitung_puc_karyawan_v19`).
 
@@ -39,4 +39,4 @@ Fungsi `hitung_puc_karyawan_v19` mengembalikan nilai yang sudah dibersihkan dari
 Fungsi `hitung_puc_karyawan_v19` mengembalikan nilai yang sudah dibersihkan dari angka desimal (koma) menggunakan pembulatan terdekat:
 ```python
 "dbo": int(round(pbo_total)),
-"csc": int(round(csc)).
+"csc": int(round(csc)). -->
