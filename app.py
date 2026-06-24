@@ -90,7 +90,7 @@ else:
 # ==========================================
 df_aktif = df_raw.dropna(subset=['NIK', 'Aktif 2025']).copy()
 
-total_dbo = 0
+total_pbo = 0
 total_csc = 0
 rows_hitung = []
 chart_data_list = []
@@ -126,7 +126,7 @@ for index, kary in df_aktif.iterrows():
             df_spot_rate=df_spot_rate_loaded
         )
         
-        total_dbo += res["dbo"]
+        total_pbo += res["pbo"]
         total_csc += res["csc"]
         
         rows_hitung.append({
@@ -135,14 +135,14 @@ for index, kary in df_aktif.iterrows():
             "Usia (Thn)": usia,         
             "Masa Kerja (Thn)": masa_kerja, 
             "Gaji": f"Rp {int(gaji):,}",
-            "Kewajiban DBO": f"Rp {round(res['dbo']):,}",
+            "Kewajiban PBO": f"Rp {round(res['pbo']):,}",
             "Beban Berjalan CSC": f"Rp {round(res['csc']):,}"
         })
         
         if len(chart_data_list) < 15:
             chart_data_list.append({
                 "Nama": nama,
-                "Kewajiban (DBO)": res["dbo"],
+                "Kewajiban (PBO)": res["pbo"],
                 "Beban Berjalan (CSC)": res["csc"]
             })
     except Exception as e:
@@ -157,27 +157,27 @@ st.subheader("📊 Hasil Penilaian Aktuaria PSAK 219")
 
 col1, col2, col3 = st.columns(3)
 col1.metric(label="JUMLAH KARYAWAN AKTIF DIHITUNG", value=f"{len(rows_hitung)} Jiwa")
-col2.metric(label="TOTAL KEWAJIBAN NERACA (DBO)", value=f"Rp {round(total_dbo):,}")
-col3.metric(label="TOTAL BEBAN LABA/RUGI (CSC)", value=f"Rp {round(total_csc):,}")
+col2.metric(label="TOTAL KEWAJIBAN NERACA (PBO)", value=f"Rp {int(round(total_pbo)):,}")
+col3.metric(label="TOTAL BEBAN LABA/RUGI (CSC)", value=f"Rp {int(round(total_csc)):,}")
 
-st.subheader("📈 Grafik Perbandingan Komponen Aktuaria (Sampel 15 Karyawan Pertama)")
+st.subheader("📈 Grafik Perbandingan Komponen Aktuaria")
 if chart_data_list:
     df_chart = pd.DataFrame(chart_data_list).set_index("Nama")
     st.bar_chart(df_chart)
 
-st.subheader("📋 Laporan Perhitungan Riil per Karyawan (Siap Ekspor)")
+st.subheader("📋 Laporan Perhitungan Riil per Karyawan")
 if rows_hitung:
     df_hasil = pd.DataFrame(rows_hitung)
     df_hasil.index = df_hasil.index + 1 
     df_hasil.index.name = "No"  
     st.dataframe(df_hasil, use_container_width=True)
 
-st.subheader("📑 Otomasi Draf Jurnal Penyesuaian (Akrual 2025)")
-data_jurnal = [
-    {"Kode Akun": "5.1.02.01", "Nama Akun": "Beban Imbalan Kerja Pasca Kerja (Laba/Rugi)", "Posisi": "DEBIT", "Nominal": f"Rp {round(total_csc):,}"},
-    {"Kode Akun": "2.1.05.03", "Nama Akun": "Kewajiban Imbalan Pasti / Utang DBO (Neraca)", "Posisi": "KREDIT", "Nominal": f"Rp {round(total_csc):,}"}
-]
-df_jurnal = pd.DataFrame(data_jurnal)
-df_jurnal.index = df_jurnal.index + 1
-df_jurnal.index.name = "No"
-st.table(df_jurnal)
+# st.subheader("📑 Otomasi Draf Jurnal Penyesuaian (Akrual 2025)")
+# data_jurnal = [
+#     {"Kode Akun": "5.1.02.01", "Nama Akun": "Beban Imbalan Kerja Pasca Kerja (Laba/Rugi)", "Posisi": "DEBIT", "Nominal": f"Rp {round(total_csc):,}"},
+#     {"Kode Akun": "2.1.05.03", "Nama Akun": "Kewajiban Imbalan Pasti / Utang PBO (Neraca)", "Posisi": "KREDIT", "Nominal": f"Rp {round(total_csc):,}"}
+# ]
+# df_jurnal = pd.DataFrame(data_jurnal)
+# df_jurnal.index = df_jurnal.index + 1
+# df_jurnal.index.name = "No"
+# st.table(df_jurnal)
