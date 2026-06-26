@@ -8,7 +8,8 @@ from core.kalkulator_puc import (
     hitung_puc_karyawan_v19, 
     muat_tabel_mortalita_dinamis, 
     muat_template_uuck,
-    muat_tabel_spot_rate
+    muat_tabel_spot_rate,
+    hitung_biaya_bunga_dari_template
 )
 
 st.set_page_config(page_title="Sistem Aktuaria Terintegrasi PSAK 219", layout="wide")
@@ -33,9 +34,11 @@ cacat_input = st.sidebar.number_input("Tingkat Cacat (%)", min_value=0.0, max_va
 tingkat_cacat = cacat_input / 100.0
 
 tanggal_valuasi = datetime(2025, 12, 31)
+tahun_berjalan = tanggal_valuasi.year
+tahun_lalu_label = str(tahun_berjalan - 1)  # Otomatis mendeteksi "2024" jika valuasi 2025
 
 # ==========================================
-# PANEL UTAMA: MANAJEMEN BERKAS (3 UPLOADER)
+# PANEL UTAMA: MANAJEMEN BERKAS (4 UPLOADER)
 # ==========================================
 st.header("📂 Manajemen Berkas Valuasi Aktuaria")
 file_karyawan, tabel_uuck, tabel_mortalita, tabel_spot_rate = st.columns(4)
@@ -111,7 +114,6 @@ for index, kary in df_aktif.iterrows():
         usia = max(0.0, round(usia, 2))
         masa_kerja = max(0.0, round(masa_kerja, 2))
         
-        # Eksekusi Engine Baru V2 yang menyerap data UUCK dan Mortalita
         res = hitung_puc_karyawan_v19(
             nama_karyawan=nama,
             usia_sekarang=usia,
@@ -127,7 +129,7 @@ for index, kary in df_aktif.iterrows():
         )
         
         total_pbo += res["pbo"]
-        total_csc += res["csc"]
+        total_csc += res["csc_final"]
         
         rows_hitung.append({
             "NIK": nik,
@@ -135,15 +137,15 @@ for index, kary in df_aktif.iterrows():
             "Usia (Thn)": usia,         
             "Masa Kerja (Thn)": masa_kerja, 
             "Gaji": f"Rp {int(gaji):,}",
-            "Kewajiban PBO": f"Rp {round(res['pbo']):,}",
-            "Beban Berjalan CSC": f"Rp {round(res['csc']):,}"
+            "Kewajiban Bersih (PBO)": f"Rp {round(res['pbo']):,}",
+            "Biaya Jasa Kini (CSC)": f"Rp {round(res['csc_final']):,}"
         })
         
         if len(chart_data_list) < 15:
             chart_data_list.append({
                 "Nama": nama,
-                "Kewajiban (PBO)": res["pbo"],
-                "Beban Berjalan (CSC)": res["csc"]
+                "Kewajiban Bersih (PBO)": res["pbo"],
+                "Biaya Jasa Kini (CSC)": res["csc_final"]
             })
     except Exception as e:
         print(f"DEBUG: Error occurred while processing {nama} (NIK: {nik}): {e}")
@@ -155,12 +157,21 @@ for index, kary in df_aktif.iterrows():
 st.markdown("---")
 st.subheader("📊 Hasil Penilaian Aktuaria PSAK 219")
 
-col1, col2, col3 = st.columns(3)
-col1.metric(label="JUMLAH KARYAWAN AKTIF DIHITUNG", value=f"{len(rows_hitung)} Jiwa")
-col2.metric(label="TOTAL KEWAJIBAN NERACA (PBO)", value=f"Rp {int(round(total_pbo)):,}")
-col3.metric(label="TOTAL BEBAN LABA/RUGI (CSC)", value=f"Rp {int(round(total_csc)):,}")
+# Eksekusi kalkulasi Biaya Bunga menggunakan df_raw/df_aktif hasil upload template
+hasil_bunga_obj = hitung_biaya_bunga_dari_template(df_aktif, tahun_lalu_label)
+total_biaya_bunga = hasil_bunga_obj["total_bunga"]
 
-st.subheader("📈 Grafik Perbandingan Komponen Aktuaria")
+col1, col2, col3, col4 = st.columns(4)
+col1.metric(label="JUMLAH KARYAWAN AKTIF DIHITUNG", value=f"{len(rows_hitung)} Jiwa")
+col2.metric(label="TOTAL KEWAJIBAN BERSIH (PBO)", value=f"Rp {int(round(total_pbo)):,}")
+col3.metric(label="BIAYA JASA KINI (CSC)", value=f"Rp {int(round(total_csc)):,}")
+col4.metric(label="BIAYA BUNGA (INTEREST COST)", value=f"Rp {total_biaya_bunga:,}".replace(",", "."))
+
+# TAMPILKAN TABEL DETAIL BUNGA DI BAWAH DATA KARYAWAN
+st.subheader("📋 Detail Perhitungan Biaya Bunga per Karyawan")
+st.dataframe(hasil_bunga_obj["tabel_bunga"], use_container_width=True)
+
+st.subheader("📈 Grafik Perbandingan Komponen Aktuaria (untuk 15 Karyawan yang ditampilkan)")
 if chart_data_list:
     df_chart = pd.DataFrame(chart_data_list).set_index("Nama")
     st.bar_chart(df_chart)
@@ -171,13 +182,3 @@ if rows_hitung:
     df_hasil.index = df_hasil.index + 1 
     df_hasil.index.name = "No"  
     st.dataframe(df_hasil, use_container_width=True)
-
-# st.subheader("📑 Otomasi Draf Jurnal Penyesuaian (Akrual 2025)")
-# data_jurnal = [
-#     {"Kode Akun": "5.1.02.01", "Nama Akun": "Beban Imbalan Kerja Pasca Kerja (Laba/Rugi)", "Posisi": "DEBIT", "Nominal": f"Rp {round(total_csc):,}"},
-#     {"Kode Akun": "2.1.05.03", "Nama Akun": "Kewajiban Imbalan Pasti / Utang PBO (Neraca)", "Posisi": "KREDIT", "Nominal": f"Rp {round(total_csc):,}"}
-# ]
-# df_jurnal = pd.DataFrame(data_jurnal)
-# df_jurnal.index = df_jurnal.index + 1
-# df_jurnal.index.name = "No"
-# st.table(df_jurnal)

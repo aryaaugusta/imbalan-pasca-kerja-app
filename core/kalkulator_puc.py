@@ -332,34 +332,40 @@ def hitung_puc_karyawan_v19(nama_karyawan, usia_sekarang, masa_kerja_sekarang, g
         hitung_nilai_resign = round(f_resign_t, 1) * rasio_p_resign * gaji_sekarang * (1 + uang_duka) * faktor_gaji_kumulatif * faktor_diskonto_kumulatif_resign
 
         # 5. REPLIKASI RUMUS EXCEL (Ditambahkan komponen Uang Duka untuk Meninggal)
-        nilai_meninggal_t = (int(round(hitung_nilai_meninggal)) / pembagi_skala) * masa_kerja_proyeksi_sesudah
-        nilai_cacat_t = (int(round(hitung_nilai_cacat)) / pembagi_skala) * masa_kerja_proyeksi_sesudah
-        nilai_resign_t = (int(round(hitung_nilai_resign)) / pembagi_skala) * masa_kerja_proyeksi_sesudah
+        nilai_meninggal_t_pembagi = (hitung_nilai_meninggal / pembagi_skala)
+        nilai_cacat_t_pembagi = (hitung_nilai_cacat / pembagi_skala)
+        nilai_resign_t_pembagi = (hitung_nilai_resign / pembagi_skala)
+
+        nilai_meninggal_t = nilai_meninggal_t_pembagi * masa_kerja_proyeksi_sesudah
+        nilai_cacat_t = nilai_cacat_t_pembagi * masa_kerja_proyeksi_sesudah
+        nilai_resign_t = nilai_resign_t_pembagi * masa_kerja_proyeksi_sesudah
 
         # Akumulasikan ke Grand Total Karyawan
         total_proyeksi_meninggal += nilai_meninggal_t
         total_proyeksi_cacat += nilai_cacat_t
         total_proyeksi_resign += nilai_resign_t
 
-        print("------------------------START PROYEKSI MANFAAT--------------------------")
-        print(f"DEBUG {nama_karyawan} | PROYEKSI TAHUN {t} - Usia: {usia_proyeksi_bulat:.2f} | Masa Kerja Skg: {masa_kerja_sekarang:.2f} | Masa Kerja Proyeksi Sesudah: {masa_kerja_proyeksi_sesudah:.2f}")
-        # print(f"       DX MENINGGAL VAL: {dx_meninggal_val} | LX SKG: {lx_sekarang}")
-        print(f"       Faktor UUCK Meninggal: {round(f_meninggal_t, 1)} | Rasio Meninggal: {rasio_p_meninggal}")
-        print(f"       Faktor UUCK Cacat: {round(f_cacat_t, 1)} | Rasio Cacat: {rasio_p_cacat}")
-        print(f"       Faktor UUCK Resign: {round(f_resign_t, 1)} | Rasio Resign: {rasio_p_resign}")
-        print(f"       Diskonto: {tingkat_bunga_t:.4f} | Faktor Diskonto Proyeksi: {faktor_diskonto:.4f} | Faktor Diskonto Kumulatif: {faktor_diskonto_kumulatif:.4f} | Faktor Diskonto Kumulatif Resign: {faktor_diskonto_kumulatif_resign:.4f}")
-        print(f"       Pembagi Skala: {pembagi_skala} | Faktor Gaji Kumulatif: {faktor_gaji_kumulatif}")
-        print(f"       Gaji Skg: {gaji_sekarang}")
-        print(f"       Hitung Proyeksi Meninggal: {int(round(hitung_nilai_meninggal))}")
-        print(f"       Nilai Proyeksi Meninggal: {nilai_meninggal_t}")
-        print(f"       Total Nilai Proyeksi Meninggal: {total_proyeksi_meninggal}")
-        print(f"       Hitung Proyeksi Cacat: {int(round(hitung_nilai_cacat))}")
-        print(f"       Nilai Proyeksi Cacat: {nilai_cacat_t}")
-        print(f"       Total Nilai Proyeksi Cacat: {total_proyeksi_cacat}")
-        print(f"       Hitung Proyeksi Resign: {int(round(hitung_nilai_resign))}")
-        print(f"       Nilai Proyeksi Resign: {nilai_resign_t}")
-        print(f"       Total Nilai Proyeksi Resign: {total_proyeksi_resign}")
-        print("------------------------------------------------------------------------")
+        # print("------------------------START PROYEKSI MANFAAT--------------------------")
+        # print(f"DEBUG {nama_karyawan} | PROYEKSI TAHUN {t} - Usia: {usia_proyeksi_bulat:.2f} | Masa Kerja Skg: {masa_kerja_sekarang:.2f} | Masa Kerja Proyeksi Sesudah: {masa_kerja_proyeksi_sesudah:.2f}")
+        # print(f"       Faktor UUCK Meninggal: {round(f_meninggal_t, 1)} | Rasio Meninggal: {rasio_p_meninggal}")
+        # print(f"       Faktor UUCK Cacat: {round(f_cacat_t, 1)} | Rasio Cacat: {rasio_p_cacat}")
+        # print(f"       Faktor UUCK Resign: {round(f_resign_t, 1)} | Rasio Resign: {rasio_p_resign}")
+        # print(f"       Diskonto: {tingkat_bunga_t:.4f} | Faktor Diskonto Proyeksi: {faktor_diskonto:.4f} | Faktor Diskonto Kumulatif: {faktor_diskonto_kumulatif:.4f} | Faktor Diskonto Kumulatif Resign: {faktor_diskonto_kumulatif_resign:.4f}")
+        # print(f"       Pembagi Skala: {pembagi_skala} | Faktor Gaji Kumulatif: {faktor_gaji_kumulatif}")
+        # print(f"       Gaji Skg: {gaji_sekarang}")
+        # print(f"       Hitung Proyeksi Meninggal: {int(round(hitung_nilai_meninggal))}")
+        # print(f"       Nilai Proyeksi Meninggal Bagi Skala: {nilai_meninggal_t_pembagi}")
+        # print(f"       Nilai Proyeksi Meninggal: {nilai_meninggal_t}")
+        # print(f"       Total Nilai Proyeksi Meninggal: {total_proyeksi_meninggal}")
+        # print(f"       Hitung Proyeksi Cacat: {int(round(hitung_nilai_cacat))}")
+        # print(f"       Nilai Proyeksi Cacat Bagi Skala: {nilai_cacat_t_pembagi}")
+        # print(f"       Nilai Proyeksi Cacat: {nilai_cacat_t}")
+        # print(f"       Total Nilai Proyeksi Cacat: {total_proyeksi_cacat}")
+        # print(f"       Hitung Proyeksi Resign: {int(round(hitung_nilai_resign))}")
+        # print(f"       Nilai Proyeksi Resign Bagi Skala: {nilai_resign_t_pembagi}")
+        # print(f"       Nilai Proyeksi Resign: {nilai_resign_t}")
+        # print(f"       Total Nilai Proyeksi Resign: {total_proyeksi_resign}")
+        # print("------------------------------------------------------------------------")
 
     # =========================================================================
     # LOGIKA ATRIBUSI BERDASARKAN USIA FILTER (< UPN - 24)
@@ -394,6 +400,7 @@ def hitung_puc_karyawan_v19(nama_karyawan, usia_sekarang, masa_kerja_sekarang, g
     nk_resign = 0.0
     unit_manfaat_pensiun = 0.0
     manfaat_pensiun_unfunded = 0.0
+    csc_final = 0.0
 
     total_manfaat_proyeksi = f_pensiun * gaji_proyeksi_pensiun
 
@@ -428,19 +435,19 @@ def hitung_puc_karyawan_v19(nama_karyawan, usia_sekarang, masa_kerja_sekarang, g
     # GABUNGKAN HASIL PROYEKSI O-40 KE TOTAL DBO KARYAWAN
     pbo_total = nk_pensiun + nk_meninggal + nk_cacat + nk_resign
     csc = unit_manfaat_pensiun + unit_manfaat_meninggal + unit_manfaat_cacat + unit_manfaat_resign
+    
+    if masa_kerja_sekarang < 1:
+        csc_final = pbo_total / 2
+    else:
+        csc_final = csc
 
     # print("------------------------HITUNG PUC KARYAWAN--------------------------")
     # print(f"Usia Pensiun Normal: {usia_pensiun_normal}")
     # print(f"DEBUG: {nama_karyawan} | Usia: {usia_sekarang_bulat} | Gaji: {gaji_sekarang}")
-    # print(f"       LX PENSIUN: {lx_pensiun} | LX SKG: {lx_sekarang}")
-    # print(f"       Tingkat Diskonto Spot Rate: {tingkat_bunga_riil}")
-    # print(f"       Faktor Pensiun: {faktor_pensiun_aktuaria}")
-    # print(f"       Faktor Diskonto Murni: {factor_diskonto_murni}")
-    # print(f"       Masa Kerja: {masa_kerja_sekarang} | Masa Kerja Total: {masa_kerja_total}")
-    # print(f"       Masa Kerja Ke Depan: {sisa_masa_kerja_depan} | Total Aktual: {total_aktual}")
-    # print(f"       Masa Kerja Lampau: {masa_kerja_lampau}")
+    # # print(f"       LX PENSIUN: {lx_pensiun} | LX SKG: {lx_sekarang}")
+    # print(f"       Tingkat Diskonto Spot Rate: {tingkat_bunga_riil} | Faktor Pensiun: {faktor_pensiun_aktuaria} | Faktor Diskonto Murni: {factor_diskonto_murni}")
+    # print(f"       Masa Kerja: {masa_kerja_sekarang} | Masa Kerja Total: {masa_kerja_total} | Masa Kerja Ke Depan: {sisa_masa_kerja_depan} | Total Aktual: {total_aktual} | Masa Kerja Lampau: {masa_kerja_lampau}")
     # print(f"       Manfaat Pensiun belum didanai: {manfaat_pensiun_unfunded}")
-    # print(f"       PBO: {pbo_total} | CSC: {csc}")
     # print(f"       Faktor UUCK Pensiun: {f_pensiun}")
     # print(f"       Faktor UUCK Meninggal: {f_meninggal_t} | Rasio Meninggal: {rasio_p_meninggal}")
     # print(f"       Faktor UUCK Cacat: {f_cacat_t} | Rasio Cacat: {rasio_p_cacat}")
@@ -449,16 +456,133 @@ def hitung_puc_karyawan_v19(nama_karyawan, usia_sekarang, masa_kerja_sekarang, g
     # print(f"       Proyeksi Upah: {gaji_proyeksi_pensiun} | Proyeksi UUK-13/2003: {total_manfaat_proyeksi}")
     # print(f"       Unit Manfaat Pensiun: {unit_manfaat_pensiun} | Unit Manfaat Meninggal: {unit_manfaat_meninggal} | Unit Manfaat Cacat: {unit_manfaat_cacat} | Unit Manfaat Resign: {unit_manfaat_resign}")
     # print(f"       NK Pensiun: {nk_pensiun} | NK Meninggal: {nk_meninggal} | NK Cacat: {nk_cacat} | NK Resign: {nk_resign}")
-    # print(f"       PBO: {pbo_total}")
+    # print(f"       PBO: {pbo_total} | CSC: {csc_final}")
     # print("---------------------------------------------------------------------")
 
     return {
-        "gaji_pensiun": gaji_proyeksi_pensiun,
-        "total_manfaat": total_manfaat_proyeksi,
-        "pbo": pbo_total,
-        "csc": csc,
-        "nk_pensiun": total_proyeksi_resign,
-        "nk_meninggal": total_proyeksi_meninggal,
-        "nk_cacat": total_proyeksi_cacat,
-        "nk_resign": total_proyeksi_resign
+        "gaji_pensiun": int(round(gaji_proyeksi_pensiun)),
+        "total_manfaat": int(round(total_manfaat_proyeksi)),
+        "pbo": int(round(pbo_total)),
+        "csc_final": int(round(csc_final)),
+        "nk_pensiun": int(round(total_proyeksi_resign)),
+        "nk_meninggal": int(round(total_proyeksi_meninggal)),
+        "nk_cacat": int(round(total_proyeksi_cacat)),
+        "nk_resign": int(round(total_proyeksi_resign))
+    }
+
+def muat_data_karyawan_dari_template(file_path):
+    """
+    Membaca data murni karyawan dari file upload awal, 
+    termasuk jangkar data historis untuk Biaya Bunga.
+    """
+    try:
+        df = pd.read_excel(file_path)
+        
+        # Bersihkan nama kolom agar seragam (lowercase & tanpa spasi)
+        df.columns = [str(c).strip().lower() for c in df.columns]
+        
+        # Mapping nama kolom agar fleksibel jika ada variasi penamaan di Excel Bapak
+        rename_dict = {}
+        for col in df.columns:
+            if 'nama' in col:
+                rename_dict[col] = 'nama_karyawan'
+            elif 'pbo_lalu' in col or 'pbo_2024' in col or 'pbo tahun lalu' in col:
+                rename_dict[col] = 'pbo_tahun_lalu'
+            elif 'rate_lalu' in col or 'diskonto_2024' in col or 'bunga tahun lalu' in col:
+                rename_dict[col] = 'rate_diskonto_tahun_lalu'
+                
+        if rename_dict:
+            df.rename(columns=rename_dict, inplace=True)
+            
+        # Pastikan tipe data finansial aman
+        df['pbo_tahun_lalu'] = pd.to_numeric(df['pbo_tahun_lalu'], errors='coerce').fillna(0.0)
+        df['rate_diskonto_tahun_lalu'] = pd.to_numeric(df['rate_diskonto_tahun_lalu'], errors='coerce').fillna(0.0)
+        
+        # JARING PENGAMAN: Jika di Excel rate ditulis bulat (misal 6.5), otomatis bagi 100
+        df['rate_diskonto_tahun_lalu'] = df['rate_diskonto_tahun_lalu'].apply(
+            lambda x: x / 100.0 if x > 1.0 else x
+        )
+        
+        return df
+    except Exception as e:
+        print(f"Error membaca template karyawan: {e}")
+        return None
+    
+def hitung_biaya_bunga_dari_template(df_karyawan, label_tahun_lalu):
+    """
+    Menghitung Biaya Bunga secara dinamis dengan memotong tabel horizontal template karyawan.
+    Mengeklusi Karyawan Baru (Luvita) & Karyawan Resign/Keluar (Agung).
+    """
+    # 1. Cari baris header utama (Baris yang berisi teks 'Aktif 2025' atau kolom NIK)
+    header_idx = 0
+    for idx, row in df_karyawan.iterrows():
+        row_str = [str(x).strip().upper() for x in row.values]
+        if 'AKTIF 2025' in row_str or 'NIK' in row_str:
+            header_idx = idx
+            break
+            
+    # Potong data mulai dari baris setelah header
+    df_data = df_karyawan.iloc[header_idx + 1:].reset_index(drop=True)
+    
+    # 2. POTONG TABEL SEBELAH KIRI (Data Aktif Tahun Berjalan)
+    # Kolom Indeks 2 (Kolom C Excel) = Nama Karyawan Aktif 2025
+    df_aktif = pd.DataFrame()
+    df_aktif['Nama_Kini'] = df_data.iloc[:, 2].astype(str).str.strip().str.upper()
+    # Bersihkan baris kosong atau teks total
+    df_aktif = df_aktif[df_aktif['Nama_Kini'].notna() & ~df_aktif['Nama_Kini'].isin(['', 'NAN', 'NONE', 'TOTAL'])]
+
+    # 3. POTONG TABEL SEBELAH KANAN (Data Aktif Tahun Lalu beserta PBO & Diskonto)
+    # Kolom Indeks 8 (Kolom I Excel) = Nama Karyawan Aktif 2024
+    # Kolom Indeks 12 (Kolom M Excel) = PBO 2024
+    # Kolom Indeks 13 (Kolom N Excel) = Diskonto 2024
+    df_lalu = pd.DataFrame()
+    df_lalu['Nama_Lalu'] = df_data.iloc[:, 8].astype(str).str.strip().str.upper()
+    df_lalu['pbo_raw'] = df_data.iloc[:, 12]
+    df_lalu['rate_raw'] = df_data.iloc[:, 13]
+    
+    # Bersihkan data tahun lalu
+    df_lalu = df_lalu[df_lalu['Nama_Lalu'].notna() & ~df_lalu['Nama_Lalu'].isin(['', 'NAN', 'NONE'])]
+    df_lalu['pbo_clean'] = pd.to_numeric(df_lalu['pbo_raw'], errors='coerce').fillna(0.0)
+    df_lalu['rate_clean'] = pd.to_numeric(df_lalu['rate_raw'], errors='coerce').fillna(0.0)
+    
+    # Pastikan data tahun lalu yang diambil murni yang memiliki nilai kewajiban
+    df_lalu = df_lalu[df_lalu['pbo_clean'] > 0]
+
+    # =========================================================================
+    # REPLIKASI VLOOKUP KETAT: Lakukan Inner Join antar dua blok data terpisah
+    # =========================================================================
+    df_matched = pd.merge(
+        df_aktif,
+        df_lalu[['Nama_Lalu', 'pbo_clean', 'rate_clean']],
+        left_on='Nama_Kini',
+        right_on='Nama_Lalu',
+        how='inner'
+    )
+    
+    # Jaring pengaman jika rate ditulis angka persen bulat (misal 7.11 -> 0.0711)
+    df_matched['rate_clean'] = df_matched['rate_clean'].apply(
+        lambda x: x / 100.0 if x > 1.0 else x
+    )
+    
+    # 4. Kalkulasi Akhir Biaya Bunga
+    df_matched['biaya_bunga_mentah'] = df_matched['pbo_clean'] * df_matched['rate_clean']
+    df_matched['Biaya Bunga'] = df_matched['biaya_bunga_mentah'].round().astype(int)
+
+    # 5. Bangun DataFrame Output untuk Tampilan Streamlit Bapak
+    df_output = pd.DataFrame()
+    df_output['Nama Karyawan'] = df_matched['Nama_Kini']
+    df_output[f'PBO ({label_tahun_lalu})'] = df_matched['pbo_clean'].round().astype(int)
+    df_output[f'Rate Diskonto ({label_tahun_lalu})'] = df_matched['rate_clean']
+    df_output['Biaya Bunga'] = df_matched['Biaya Bunga']
+
+    # Set indeks penomoran rapi dimulai dari angka 1
+    df_output = df_output.reset_index(drop=True)
+    df_output.index = df_output.index + 1
+    df_output.index.name = "No"
+
+    grand_total_bunga = df_output['Biaya Bunga'].sum()
+
+    return {
+        "tabel_bunga": df_output,
+        "total_bunga": int(grand_total_bunga)
     }
