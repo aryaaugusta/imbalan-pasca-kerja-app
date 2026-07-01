@@ -510,47 +510,48 @@ def muat_data_karyawan_dari_template(file_path):
     
 def hitung_biaya_bunga_dari_template(df_karyawan, label_tahun_lalu):
     """
-    Menghitung Biaya Bunga secara dinamis dengan memotong tabel horizontal template karyawan.
-    Mengeklusi Karyawan Baru (Luvita) & Karyawan Resign/Keluar (Agung).
+    Menghitung Biaya Bunga secara dinamis berdasarkan posisi kolom template terbaru:
+    - Kolom C (Indeks 2): Nama Karyawan Aktif Tahun Ini
+    - Kolom J (Indeks 9): Nama Karyawan Aktif Tahun Lalu
+    - Kolom N (Indeks 13): PBO Tahun Lalu
+    - Kolom O (Indeks 14): Diskonto Tahun Lalu
+    
+    Format output pada DataFrame langsung disesuaikan untuk kebutuhan UI (String Formatted).
     """
-    # 1. Cari baris header utama (Baris yang berisi teks 'Aktif 2025' atau kolom NIK)
+    df_src = df_karyawan.copy()
+    
+    # 1. Cari baris header utama (baris yang mengandung NIK atau AKTIF TAHUN INI)
     header_idx = 0
-    for idx, row in df_karyawan.iterrows():
+    for idx, row in df_src.iterrows():
         row_str = [str(x).strip().upper() for x in row.values]
-        if 'AKTIF 2025' in row_str or 'NIK' in row_str:
+        if 'NIK' in row_str or 'AKTIF TAHUN INI' in row_str or 'AKTIF' in str(row_str):
             header_idx = idx
             break
             
-    # Potong data mulai dari baris setelah header
-    df_data = df_karyawan.iloc[header_idx + 1:].reset_index(drop=True)
-    
-    # 2. POTONG TABEL SEBELAH KIRI (Data Aktif Tahun Berjalan)
-    # Kolom Indeks 2 (Kolom C Excel) = Nama Karyawan Aktif 2025
+    # Potong data mengambil baris di bawah header agar murni data karyawan
+    df_data = df_src.iloc[header_idx:].reset_index(drop=True)
+
+    # 2. PROSES TABEL KARYAWAN AKTIF TAHUN INI (KOLOM C / INDEKS 2)
     df_aktif = pd.DataFrame()
     df_aktif['Nama_Kini'] = df_data.iloc[:, 2].astype(str).str.strip().str.upper()
-    # Bersihkan baris kosong atau teks total
+    # Bersihkan dari baris kosong atau baris total/judul di bawah
     df_aktif = df_aktif[df_aktif['Nama_Kini'].notna() & ~df_aktif['Nama_Kini'].isin(['', 'NAN', 'NONE', 'TOTAL'])]
 
-    # 3. POTONG TABEL SEBELAH KANAN (Data Aktif Tahun Lalu beserta PBO & Diskonto)
-    # Kolom Indeks 8 (Kolom I Excel) = Nama Karyawan Aktif 2024
-    # Kolom Indeks 12 (Kolom M Excel) = PBO 2024
-    # Kolom Indeks 13 (Kolom N Excel) = Diskonto 2024
+    # 3. PROSES TABEL HISTORIS TAHUN LALU (KOLOM J, N, O / INDEKS 9, 13, 14)
     df_lalu = pd.DataFrame()
-    df_lalu['Nama_Lalu'] = df_data.iloc[:, 8].astype(str).str.strip().str.upper()
-    df_lalu['pbo_raw'] = df_data.iloc[:, 12]
-    df_lalu['rate_raw'] = df_data.iloc[:, 13]
+    df_lalu['Nama_Lalu'] = df_data.iloc[:, 9].astype(str).str.strip().str.upper()
+    df_lalu['pbo_raw'] = df_data.iloc[:, 13]
+    df_lalu['rate_raw'] = df_data.iloc[:, 14]
     
     # Bersihkan data tahun lalu
     df_lalu = df_lalu[df_lalu['Nama_Lalu'].notna() & ~df_lalu['Nama_Lalu'].isin(['', 'NAN', 'NONE'])]
     df_lalu['pbo_clean'] = pd.to_numeric(df_lalu['pbo_raw'], errors='coerce').fillna(0.0)
     df_lalu['rate_clean'] = pd.to_numeric(df_lalu['rate_raw'], errors='coerce').fillna(0.0)
     
-    # Pastikan data tahun lalu yang diambil murni yang memiliki nilai kewajiban
+    # Hanya pertahankan data historis yang memiliki nilai PBO > 0
     df_lalu = df_lalu[df_lalu['pbo_clean'] > 0]
 
-    # =========================================================================
-    # REPLIKASI VLOOKUP KETAT: Lakukan Inner Join antar dua blok data terpisah
-    # =========================================================================
+    # 4. REPLIKASI VLOOKUP KETAT (Strict Inner Join Berdasarkan Nama)
     df_matched = pd.merge(
         df_aktif,
         df_lalu[['Nama_Lalu', 'pbo_clean', 'rate_clean']],
@@ -559,28 +560,35 @@ def hitung_biaya_bunga_dari_template(df_karyawan, label_tahun_lalu):
         how='inner'
     )
     
-    # Jaring pengaman jika rate ditulis angka persen bulat (misal 7.11 -> 0.0711)
+    # Jaring pengaman persentase tingkat diskonto (misal 7.05 menjadi 0.0705)
     df_matched['rate_clean'] = df_matched['rate_clean'].apply(
         lambda x: x / 100.0 if x > 1.0 else x
     )
     
-    # 4. Kalkulasi Akhir Biaya Bunga
+    # 5. Hitung Biaya Bunga Akhir per Individu
     df_matched['biaya_bunga_mentah'] = df_matched['pbo_clean'] * df_matched['rate_clean']
     df_matched['Biaya Bunga'] = df_matched['biaya_bunga_mentah'].round().astype(int)
 
-    # 5. Bangun DataFrame Output untuk Tampilan Streamlit Bapak
+    # Simpan nilai total numerik sebelum kolom diubah menjadi teks berformat
+    grand_total_bunga = df_matched['Biaya Bunga'].sum()
+
+    # 6. Susun Output Akhir & Terapkan Formatter Finansial untuk Layar UI
     df_output = pd.DataFrame()
     df_output['Nama Karyawan'] = df_matched['Nama_Kini']
-    df_output[f'PBO ({label_tahun_lalu})'] = df_matched['pbo_clean'].round().astype(int)
-    df_output[f'Rate Diskonto ({label_tahun_lalu})'] = df_matched['rate_clean']
-    df_output['Biaya Bunga'] = df_matched['Biaya Bunga']
+    
+    # Format kolom PBO dengan pemisah ribuan titik
+    df_output[f'PBO ({label_tahun_lalu})'] = df_matched['pbo_clean'].round().astype(int).apply(lambda x: f"{x:,.0f}".replace(",", "."))
+    
+    # Format kolom Rate Diskonto menjadi bentuk persentase (Contoh: 7.05%)
+    df_output[f'Rate Diskonto ({label_tahun_lalu})'] = df_matched['rate_clean'].apply(lambda x: f"{x * 100:.2f}%")
+    
+    # Format kolom Biaya Bunga dengan pemisah ribuan titik
+    df_output['Biaya Bunga'] = df_matched['Biaya Bunga'].apply(lambda x: f"{x:,.0f}".replace(",", "."))
 
-    # Set indeks penomoran rapi dimulai dari angka 1
+    # Set indeks nomor urut rapi dari angka 1
     df_output = df_output.reset_index(drop=True)
     df_output.index = df_output.index + 1
     df_output.index.name = "No"
-
-    grand_total_bunga = df_output['Biaya Bunga'].sum()
 
     return {
         "tabel_bunga": df_output,

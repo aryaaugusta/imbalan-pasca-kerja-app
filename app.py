@@ -91,7 +91,7 @@ else:
 # ==========================================
 # PROCESSING CORE ENGINE WITH NEW MULTI-DATA
 # ==========================================
-df_aktif = df_raw.dropna(subset=['NIK', 'Aktif 2025']).copy()
+df_aktif = df_raw.dropna(subset=['NIK', 'Aktif Tahun Ini']).copy()
 
 total_pbo = 0
 total_csc = 0
@@ -100,7 +100,7 @@ chart_data_list = []
 
 for index, kary in df_aktif.iterrows():
     try:
-        nama = str(kary["Aktif 2025"])
+        nama = str(kary["Aktif Tahun Ini"])
         nik = str(kary["NIK"])
         gaji = float(kary["Gaji"])
         
