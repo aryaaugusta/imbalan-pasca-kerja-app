@@ -25,8 +25,8 @@ st.markdown("---")
 st.sidebar.header("⚙️ Parameter & Asumsi Aktuaria")
 upn = st.sidebar.number_input("Usia Pensiun Normal (UPN)", min_value=50, max_value=65, value=58)
 
-bunga_input = st.sidebar.number_input("Tingkat Bunga Diskonto (%)", min_value=1.0, max_value=15.0, value=6.63, step=0.01, format="%.2f")
-bunga_diskonto = bunga_input / 100.0
+bunga_input = st.sidebar.number_input("Tingkat Diskonto (%)", min_value=1.0, max_value=15.0, value=6.63, step=0.01, format="%.2f")
+bunga_diskonto = 0#bunga_input / 100.0
 
 gaji_input = st.sidebar.number_input("Estimasi Kenaikan Gaji Tahunan (%)", min_value=1.0, max_value=15.0, value=4.00, step=0.01, format="%.2f")
 kenaikan_gaji = gaji_input / 100.0
@@ -89,7 +89,7 @@ df_tm_loaded = None
 df_spot_rate_loaded = None
 
 with file_karyawan:
-    uploaded_file = st.file_uploader("1. Unggah Berkas Konsolidasi Karyawan (.xlsx)", type=["xlsx"])
+    uploaded_file = st.file_uploader("1. Unggah Berkas Data Karyawan (.xlsx)", type=["xlsx"])
 
 with tabel_uuck:
     uploaded_uuck = st.file_uploader("2. Unggah Berkas Template UUCK (.xlsx)", type=["xlsx"])
@@ -110,13 +110,13 @@ with tabel_mortalita:
             st.error(f"Gagal memproses berkas Tabel Mortalita: {e}")
 
 with tabel_spot_rate:
-    uploaded_spot_rate = st.file_uploader("4. Unggah Berkas Tabel Spot Rate (.xlsx)", type=["xlsx"])
+    uploaded_spot_rate = st.file_uploader("4. Unggah Berkas Tabel IGSYC (.xlsx)", type=["xlsx"])
     if uploaded_spot_rate is not None:
         try:
             df_spot_rate_loaded = muat_tabel_spot_rate(uploaded_spot_rate)
-            st.success("✅ Tabel Spot Rate Aktif!")
+            st.success("✅ Tabel IGSYC 31 Desember 2025 Aktif!")
         except Exception as e:
-            st.error(f"Gagal memproses berkas Tabel Spot Rate: {e}")
+            st.error(f"Gagal memproses berkas Tabel IGSYC: {e}")
 
 if uploaded_file is not None:
     try:
@@ -128,7 +128,7 @@ if uploaded_file is not None:
         st.error(f"Gagal membaca file Excel Karyawan: {e}")
         st.stop()
 else:
-    st.warning("⚠️ Menunggu unggahan Berkas Konsolidasi Karyawan untuk memulai valuasi.")
+    st.warning("⚠️ Menunggu unggahan Berkas Data Karyawan untuk memulai perhitungan.")
     st.stop()
 
 # ==========================================
@@ -211,16 +211,16 @@ col2.metric(label="TOTAL KEWAJIBAN BERSIH (PBO)", value=f"Rp {int(round(total_pb
 col3.metric(label="BIAYA JASA KINI (CSC)", value=f"Rp {int(round(total_csc)):,}")
 col4.metric(label="BIAYA BUNGA (INTEREST COST)", value=f"Rp {total_biaya_bunga:,}".replace(",", "."))
 
+# st.subheader("📈 Grafik Perbandingan Komponen Aktuaria (untuk 15 Karyawan yang ditampilkan)")
+# if chart_data_list:
+#     df_chart = pd.DataFrame(chart_data_list).set_index("Nama")
+#     st.bar_chart(df_chart)
+
+st.subheader("📋 Laporan Perhitungan PSAK-219 per Karyawan")
+
 # TAMPILKAN TABEL DETAIL BUNGA DI BAWAH DATA KARYAWAN
 st.subheader("📋 Detail Perhitungan Biaya Bunga per Karyawan")
 st.dataframe(hasil_bunga_obj["tabel_bunga"], use_container_width=True)
-
-st.subheader("📈 Grafik Perbandingan Komponen Aktuaria (untuk 15 Karyawan yang ditampilkan)")
-if chart_data_list:
-    df_chart = pd.DataFrame(chart_data_list).set_index("Nama")
-    st.bar_chart(df_chart)
-
-st.subheader("📋 Laporan Perhitungan Riil per Karyawan")
 
 if rows_hitung:
     df_hasil = pd.DataFrame(rows_hitung)
@@ -231,27 +231,27 @@ if rows_hitung:
 
     st.dataframe(df_display, use_container_width=True)
 
-    st.markdown("### 🔍 Detail Perhitungan PUC per Karyawan")
+    # st.markdown("### 🔍 Detail Perhitungan PUC per Karyawan")
 
-    pilihan = st.selectbox(
-        "Pilih karyawan untuk melihat detail:",
-        df_hasil["Nama Karyawan"].tolist()
-    )
+    # pilihan = st.selectbox(
+    #     "Pilih karyawan untuk melihat detail:",
+    #     df_hasil["Nama Karyawan"].tolist()
+    # )
 
-    if st.button("Tampilkan Detail PUC"):
-        row = df_hasil[df_hasil["Nama Karyawan"] == pilihan].iloc[0]
-        df_detail = pd.DataFrame(row["detail_proyeksi"])
+    # if st.button("Tampilkan Detail PUC"):
+    #     row = df_hasil[df_hasil["Nama Karyawan"] == pilihan].iloc[0]
+    #     df_detail = pd.DataFrame(row["detail_proyeksi"])
 
-        df_detail = df_detail.reset_index(drop=True)
-        df_detail.index = df_detail.index + 1
-        df_detail.index.name = "No"
+    #     df_detail = df_detail.reset_index(drop=True)
+    #     df_detail.index = df_detail.index + 1
+    #     df_detail.index.name = "No"
 
-        st.markdown(f"#### Detail PUC - {pilihan}")
-        st.dataframe(df_detail, use_container_width=True)
+    #     st.markdown(f"#### Detail PUC - {pilihan}")
+    #     st.dataframe(df_detail, use_container_width=True)
 
-        st.download_button(
-            label="Download Detail ke Excel",
-            data=df_detail.to_csv(index=False).encode("utf-8"),
-            file_name=f"detail_puc_{pilihan}.csv",
-            mime="text/csv"
-        )
+    #     st.download_button(
+    #         label="Download Detail ke Excel",
+    #         data=df_detail.to_csv(index=False).encode("utf-8"),
+    #         file_name=f"detail_puc_{pilihan}.csv",
+    #         mime="text/csv"
+    #     )

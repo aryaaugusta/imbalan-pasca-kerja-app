@@ -494,6 +494,88 @@ def hitung_puc_karyawan_v19(nama_karyawan, usia_sekarang, masa_kerja_sekarang, g
         "detail_proyeksi": detail_proyeksi
     }
 
+def proses_puc_seluruh_karyawan(df_mentah, df_tm, df_uuck, df_spot_rate, 
+                                kenaikan_gaji, bunga_diskonto_default, tingkat_cacat, uang_duka=0.0):
+    """
+    Fungsi pembungkus untuk memproses seluruh baris karyawan dari template excel.
+    Mengembalikan DataFrame Pandas desimal murni lengkap untuk kebutuhan Audit Pop-Up UI.
+    """
+    header_idx = 0
+    for idx, row in df_mentah.iterrows():
+        row_str = [str(x).strip().upper() for x in row.values]
+        if 'NIK' in row_str or 'AKTIF TAHUN INI' in row_str:
+            header_idx = idx
+            break
+            
+    headers = [str(h).strip() for h in df_mentah.iloc[header_idx].values]
+    df_data = df_mentah.iloc[header_idx + 1:].reset_index(drop=True)
+    df_data.columns = headers
+    
+    list_hasil_puc = []
+    
+    for idx, row in df_data.iterrows():
+        nama = str(row.iloc[2]).strip().upper() # Kolom C
+        
+        if pd.isna(row.iloc[2]) or nama in ['', 'NAN', 'NONE', 'TOTAL']:
+            continue
+            
+        try:
+            usia = float(row.get('Usia', 0.0)) if 'Usia' in df_data.columns else float(row.iloc[4])
+            mk = float(row.get('Masa Kerja', 0.0)) if 'Masa Kerja' in df_data.columns else float(row.iloc[5])
+            gaji = float(row.get('Gaji', 0.0)) if 'Gaji' in df_data.columns else float(row.iloc[6])
+            upn = float(row.get('UPN', 56.0)) if 'UPN' in df_data.columns else 56.0
+        except Exception:
+            continue
+            
+        # Panggil fungsi v19 bawaan Bapak untuk hitung per orang
+        res_individu = hitung_puc_karyawan_v19(
+            nama_karyawan=nama,
+            usia_sekarang=usia,
+            masa_kerja_sekarang=mk,
+            gaji_sekarang=gaji,
+            upn=upn,
+            kenaikan_gaji=kenaikan_gaji,
+            bunga_diskonto_default=bunga_diskonto_default,
+            tingkat_cacat=tingkat_cacat,
+            uang_duka=uang_duka,
+            df_tm=df_tm,
+            df_uuck=df_uuck,
+            df_spot_rate=df_spot_rate
+        )
+        
+        # 🔍 AMBIL TINGKAT DISKONTO RIIL DARI SPOT RATE DINAMIS
+        # Kita hitung sisa masa kerja depan sama dengan logika internal v19 Bapak
+        selisih_usia = upn - round(usia, 1)
+        sisa_masa_kerja_depan = max(0.0, min(24.0, selisih_usia))
+        
+        # Panggil fungsi dinamis untuk mendapatkan rate riil yang dipakai untuk karyawan ini
+        rate_riil_karyawan = dapatkan_spot_rate_dinamis(df_spot_rate, sisa_masa_kerja_depan, bunga_diskonto_default)
+        
+        row_audit = {
+            "Nama Karyawan": nama,
+            "Usia": usia,
+            "Masa Kerja": mk,
+            "Gaji Terakhir": gaji,
+            "Usia Pensiun": upn,
+            "Rate Diskonto": rate_riil_karyawan, # <-- [BARU] Simpan rate desimal murni (ex: 0.0705)
+            "Gaji Proyeksi": res_individu["gaji_pensiun"],
+            "Total Manfaat Proyeksi": res_individu["total_manfaat"],
+            "Kewajiban Bersih": res_individu["pbo"],
+            "Biaya Jasa Kini": res_individu["csc_final"],
+            "NK Pensiun": res_individu["nk_pensiun"],
+            "NK Meninggal": res_individu["nk_meninggal"],
+            "NK Cacat": res_individu["nk_cacat"],
+            "NK Resign": res_individu["nk_resign"]
+        }
+        list_hasil_puc.append(row_audit)
+        
+    df_puc_final = pd.DataFrame(list_hasil_puc)
+    df_puc_final = df_puc_final.reset_index(drop=True)
+    df_puc_final.index = df_puc_final.index + 1
+    df_puc_final.index.name = "No"
+    
+    return df_puc_final
+
 def muat_data_karyawan_dari_template(file_path):
     """
     Membaca data murni karyawan dari file upload awal, 
