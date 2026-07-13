@@ -9,7 +9,8 @@ from core.kalkulator_puc import (
     muat_tabel_mortalita_dinamis, 
     muat_template_uuck,
     muat_tabel_spot_rate,
-    hitung_biaya_bunga_dari_template
+    hitung_biaya_bunga_dari_template,
+    ambil_nama_pt_dari_template
 )
 
 st.set_page_config(page_title="Sistem Aktuaria Terintegrasi PSAK 219", layout="wide")
@@ -36,6 +37,46 @@ tingkat_cacat = cacat_input / 100.0
 tanggal_valuasi = datetime(2025, 12, 31)
 tahun_berjalan = tanggal_valuasi.year
 tahun_lalu_label = str(tahun_berjalan - 1)  # Otomatis mendeteksi "2024" jika valuasi 2025
+
+# =========================================================================
+# [BARU] DEFINISI WINDOW POP-UP DETAIL PUC PER KARYAWAN
+# =========================================================================
+@st.dialog("🔍 Detail Rumus PUC Aktuaria", width="large")
+def tampilkan_modal_puc(row_karyawan):
+    st.write(f"### Karyawan: **{row_karyawan['Nama Karyawan']}**")
+    st.caption("Berikut adalah breakdown komponen formula PUC murni untuk dibandingkan dengan Excel:")
+
+    # Fungsi pembantu internal untuk memformat mata uang Rupiah dengan pemisah titik
+    def format_rupiah(angka):
+        try:
+            # Format desimal murni dua angka di belakang koma, ribuan dengan titik
+            return f"{angka:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        except Exception:
+            return f"{angka}"
+    
+    data_komparasi = {
+        "Komponen PUC": [
+            "Usia Saat Penilaian", "Usia Pensiun (UPN)", "Masa Kerja Aktual (Tahun)", "Gaji Terakhir",
+            "Gaji Proyeksi Pensiun", "Total Manfaat Proyeksi",
+            "Nilai Kini Kewajiban (PBO / Kewajiban Bersih)", "Biaya Jasa Kini (Current Service Cost)",
+            "NK Pensiun", "NK Meninggal", "NK Cacat", "NK Resign"
+        ],
+        "Nilai di Aplikasi": [
+            f"{row_karyawan['Usia']:.4f} Tahun",
+            f"{int(row_karyawan['Usia Pensiun'])} Tahun",
+            f"{row_karyawan['Masa Kerja']:.4f} Tahun",
+            format_rupiah(row_karyawan['Gaji Terakhir']),
+            format_rupiah(row_karyawan['Gaji Proyeksi']),
+            format_rupiah(row_karyawan['Total Manfaat Proyeksi']),
+            format_rupiah(row_karyawan['Kewajiban Bersih']),
+            format_rupiah(row_karyawan['Biaya Jasa Kini']),
+            format_rupiah(row_karyawan['NK Pensiun']),
+            format_rupiah(row_karyawan['NK Meninggal']),
+            format_rupiah(row_karyawan['NK Cacat']),
+            format_rupiah(row_karyawan['NK Resign'])
+        ]
+    }
+    st.table(pd.DataFrame(data_komparasi))
 
 # ==========================================
 # PANEL UTAMA: MANAJEMEN BERKAS (4 UPLOADER)
@@ -80,6 +121,8 @@ with tabel_spot_rate:
 if uploaded_file is not None:
     try:
         df_raw = pd.read_excel(uploaded_file, skiprows=10)
+        df_mentah = pd.read_excel(uploaded_file, header=None)
+        nama_perusahaan = ambil_nama_pt_dari_template(df_mentah)
         st.success("✅ File Data Karyawan Berhasil Dimuat!")
     except Exception as e:
         st.error(f"Gagal membaca file Excel Karyawan: {e}")
@@ -138,7 +181,8 @@ for index, kary in df_aktif.iterrows():
             "Masa Kerja (Thn)": masa_kerja, 
             "Gaji": f"Rp {int(gaji):,}",
             "Kewajiban Bersih (PBO)": f"Rp {round(res['pbo']):,}",
-            "Biaya Jasa Kini (CSC)": f"Rp {round(res['csc_final']):,}"
+            "Biaya Jasa Kini (CSC)": f"Rp {round(res['csc_final']):,}",
+            "detail_proyeksi": res["detail_proyeksi"]
         })
         
         if len(chart_data_list) < 15:
@@ -155,7 +199,7 @@ for index, kary in df_aktif.iterrows():
 # DISPLAY DASBOR & OUTPUT VISUAL
 # ==========================================
 st.markdown("---")
-st.subheader("📊 Hasil Penilaian Aktuaria PSAK 219")
+st.subheader(f"📊 Hasil Penilaian Aktuaria PSAK 219 - **{nama_perusahaan}**")
 
 # Eksekusi kalkulasi Biaya Bunga menggunakan df_raw/df_aktif hasil upload template
 hasil_bunga_obj = hitung_biaya_bunga_dari_template(df_aktif, tahun_lalu_label)
@@ -177,8 +221,37 @@ if chart_data_list:
     st.bar_chart(df_chart)
 
 st.subheader("📋 Laporan Perhitungan Riil per Karyawan")
+
 if rows_hitung:
     df_hasil = pd.DataFrame(rows_hitung)
-    df_hasil.index = df_hasil.index + 1 
-    df_hasil.index.name = "No"  
-    st.dataframe(df_hasil, use_container_width=True)
+
+    df_display = df_hasil.drop(columns=["detail_proyeksi"])
+    df_display.index = df_display.index + 1
+    df_display.index.name = "No"
+
+    st.dataframe(df_display, use_container_width=True)
+
+    st.markdown("### 🔍 Detail Perhitungan PUC per Karyawan")
+
+    pilihan = st.selectbox(
+        "Pilih karyawan untuk melihat detail:",
+        df_hasil["Nama Karyawan"].tolist()
+    )
+
+    if st.button("Tampilkan Detail PUC"):
+        row = df_hasil[df_hasil["Nama Karyawan"] == pilihan].iloc[0]
+        df_detail = pd.DataFrame(row["detail_proyeksi"])
+
+        df_detail = df_detail.reset_index(drop=True)
+        df_detail.index = df_detail.index + 1
+        df_detail.index.name = "No"
+
+        st.markdown(f"#### Detail PUC - {pilihan}")
+        st.dataframe(df_detail, use_container_width=True)
+
+        st.download_button(
+            label="Download Detail ke Excel",
+            data=df_detail.to_csv(index=False).encode("utf-8"),
+            file_name=f"detail_puc_{pilihan}.csv",
+            mime="text/csv"
+        )

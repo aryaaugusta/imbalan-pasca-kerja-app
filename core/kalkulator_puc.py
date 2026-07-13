@@ -268,6 +268,8 @@ def hitung_puc_karyawan_v19(nama_karyawan, usia_sekarang, masa_kerja_sekarang, g
     # =========================================================================
     # MATRIKS LOOP PROYEKSI HORIZONTAL (TAHUN 0 SAMPAI 40)
     # =========================================================================
+    detail_proyeksi = []
+
     for t in range(41):  # 0, 1, 2, ..., 40
         usia_proyeksi = usia_sekarang_bulat + t
         masa_kerja_proyeksi = masa_kerja_proyeksi_sesudah + t
@@ -345,27 +347,48 @@ def hitung_puc_karyawan_v19(nama_karyawan, usia_sekarang, masa_kerja_sekarang, g
         total_proyeksi_cacat += nilai_cacat_t
         total_proyeksi_resign += nilai_resign_t
 
-        # print("------------------------START PROYEKSI MANFAAT--------------------------")
-        # print(f"DEBUG {nama_karyawan} | PROYEKSI TAHUN {t} - Usia: {usia_proyeksi_bulat:.2f} | Masa Kerja Skg: {masa_kerja_sekarang:.2f} | Masa Kerja Proyeksi Sesudah: {masa_kerja_proyeksi_sesudah:.2f}")
-        # print(f"       Faktor UUCK Meninggal: {round(f_meninggal_t, 1)} | Rasio Meninggal: {rasio_p_meninggal}")
-        # print(f"       Faktor UUCK Cacat: {round(f_cacat_t, 1)} | Rasio Cacat: {rasio_p_cacat}")
-        # print(f"       Faktor UUCK Resign: {round(f_resign_t, 1)} | Rasio Resign: {rasio_p_resign}")
-        # print(f"       Diskonto: {tingkat_bunga_t:.4f} | Faktor Diskonto Proyeksi: {faktor_diskonto:.4f} | Faktor Diskonto Kumulatif: {faktor_diskonto_kumulatif:.4f} | Faktor Diskonto Kumulatif Resign: {faktor_diskonto_kumulatif_resign:.4f}")
-        # print(f"       Pembagi Skala: {pembagi_skala} | Faktor Gaji Kumulatif: {faktor_gaji_kumulatif}")
-        # print(f"       Gaji Skg: {gaji_sekarang}")
-        # print(f"       Hitung Proyeksi Meninggal: {int(round(hitung_nilai_meninggal))}")
-        # print(f"       Nilai Proyeksi Meninggal Bagi Skala: {nilai_meninggal_t_pembagi}")
-        # print(f"       Nilai Proyeksi Meninggal: {nilai_meninggal_t}")
-        # print(f"       Total Nilai Proyeksi Meninggal: {total_proyeksi_meninggal}")
-        # print(f"       Hitung Proyeksi Cacat: {int(round(hitung_nilai_cacat))}")
-        # print(f"       Nilai Proyeksi Cacat Bagi Skala: {nilai_cacat_t_pembagi}")
-        # print(f"       Nilai Proyeksi Cacat: {nilai_cacat_t}")
-        # print(f"       Total Nilai Proyeksi Cacat: {total_proyeksi_cacat}")
-        # print(f"       Hitung Proyeksi Resign: {int(round(hitung_nilai_resign))}")
-        # print(f"       Nilai Proyeksi Resign Bagi Skala: {nilai_resign_t_pembagi}")
-        # print(f"       Nilai Proyeksi Resign: {nilai_resign_t}")
-        # print(f"       Total Nilai Proyeksi Resign: {total_proyeksi_resign}")
-        # print("------------------------------------------------------------------------")
+        detail_proyeksi.append({
+            "Tahun ke": t,
+            "Usia Proyeksi": usia_proyeksi_bulat,
+            "Masa Kerja Proyeksi": round(masa_kerja_proyeksi, 2),
+            "Faktor UUCK Meninggal": round(f_meninggal_t, 2),
+            "Faktor UUCK Cacat": round(f_cacat_t, 2),
+            "Faktor UUCK Resign": round(f_resign_t, 2),
+            "Rasio Meninggal": rasio_p_meninggal,
+            "Rasio Cacat": rasio_p_cacat,
+            "Rasio Resign": rasio_p_resign,
+            "Diskonto": tingkat_bunga_t,
+            "Faktor Diskonto": faktor_diskonto_kumulatif,
+            "Faktor Gaji": faktor_gaji_kumulatif,
+            "Nilai Meninggal": nilai_meninggal_t,
+            "Nilai Cacat": nilai_cacat_t,
+            "Nilai Resign": nilai_resign_t,
+            "Total Proyeksi Meninggal": total_proyeksi_meninggal,
+            "Total Proyeksi Cacat": total_proyeksi_cacat,
+            "Total Proyeksi Resign": total_proyeksi_resign
+        })
+
+        print("------------------------START PROYEKSI MANFAAT--------------------------")
+        print(f"DEBUG {nama_karyawan} | PROYEKSI TAHUN {t} - Usia: {usia_proyeksi_bulat:.2f} | Masa Kerja Skg: {masa_kerja_sekarang:.2f} | Masa Kerja Proyeksi Sesudah: {masa_kerja_proyeksi_sesudah:.2f}")
+        print(f"       Faktor UUCK Meninggal: {round(f_meninggal_t, 1)} | Rasio Meninggal: {rasio_p_meninggal}")
+        print(f"       Faktor UUCK Cacat: {round(f_cacat_t, 1)} | Rasio Cacat: {rasio_p_cacat}")
+        print(f"       Faktor UUCK Resign: {round(f_resign_t, 1)} | Rasio Resign: {rasio_p_resign}")
+        print(f"       Diskonto: {tingkat_bunga_t:.4f} | Faktor Diskonto Proyeksi: {faktor_diskonto:.4f} | Faktor Diskonto Kumulatif: {faktor_diskonto_kumulatif:.4f} | Faktor Diskonto Kumulatif Resign: {faktor_diskonto_kumulatif_resign:.4f}")
+        print(f"       Pembagi Skala: {pembagi_skala} | Faktor Gaji Kumulatif: {faktor_gaji_kumulatif}")
+        print(f"       Gaji Skg: {gaji_sekarang}")
+        print(f"       Hitung Proyeksi Meninggal: {int(round(hitung_nilai_meninggal))}")
+        print(f"       Nilai Proyeksi Meninggal Bagi Skala: {nilai_meninggal_t_pembagi}")
+        print(f"       Nilai Proyeksi Meninggal: {nilai_meninggal_t}")
+        print(f"       Total Nilai Proyeksi Meninggal: {total_proyeksi_meninggal}")
+        print(f"       Hitung Proyeksi Cacat: {int(round(hitung_nilai_cacat))}")
+        print(f"       Nilai Proyeksi Cacat Bagi Skala: {nilai_cacat_t_pembagi}")
+        print(f"       Nilai Proyeksi Cacat: {nilai_cacat_t}")
+        print(f"       Total Nilai Proyeksi Cacat: {total_proyeksi_cacat}")
+        print(f"       Hitung Proyeksi Resign: {int(round(hitung_nilai_resign))}")
+        print(f"       Nilai Proyeksi Resign Bagi Skala: {nilai_resign_t_pembagi}")
+        print(f"       Nilai Proyeksi Resign: {nilai_resign_t}")
+        print(f"       Total Nilai Proyeksi Resign: {total_proyeksi_resign}")
+        print("------------------------------------------------------------------------")
 
     # =========================================================================
     # LOGIKA ATRIBUSI BERDASARKAN USIA FILTER (< UPN - 24)
@@ -467,7 +490,8 @@ def hitung_puc_karyawan_v19(nama_karyawan, usia_sekarang, masa_kerja_sekarang, g
         "nk_pensiun": int(round(total_proyeksi_resign)),
         "nk_meninggal": int(round(total_proyeksi_meninggal)),
         "nk_cacat": int(round(total_proyeksi_cacat)),
-        "nk_resign": int(round(total_proyeksi_resign))
+        "nk_resign": int(round(total_proyeksi_resign)),
+        "detail_proyeksi": detail_proyeksi
     }
 
 def muat_data_karyawan_dari_template(file_path):
@@ -594,3 +618,21 @@ def hitung_biaya_bunga_dari_template(df_karyawan, label_tahun_lalu):
         "tabel_bunga": df_output,
         "total_bunga": int(grand_total_bunga)
     }
+
+def ambil_nama_pt_dari_template(df_karyawan):
+    """
+    Mengambil nama PT secara dinamis dari baris pertama Kolom F (F1) di Excel.
+    Jika kosong atau tidak terbaca, akan mengembalikan nilai Default 'Klien PT'
+    """
+    try:
+        # Kolom F di Excel = Indeks ke-5 di Pandas
+        # Baris 1 di Excel = Indeks ke-0 di Pandas
+        nama_pt = str(df_karyawan.iloc[0, 5]).strip()
+        
+        # Jaring pengaman jika terbaca 'nan' atau kosong
+        if nama_pt.lower() in ['nan', 'none', '']:
+            return "PT XXXXX"
+            
+        return nama_pt
+    except Exception:
+        return "PT XXXXX"
