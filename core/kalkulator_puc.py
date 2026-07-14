@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from datetime import datetime
 
 def muat_tabel_spot_rate(file_path):
     """Membaca tabel yield curve / spot rate murni dari struktur 2 kolom"""
@@ -59,7 +60,7 @@ def dapatkan_spot_rate_dinamis(df_spot_rate, masa_kerja_depan, default_rate):
         
     return float(rate_val) / 100.0
 
-def muat_tabel_mortalita_dinamis(file_path, tingkat_cacat_input, bunga_diskonto_input):
+def muat_tabel_mortalita_dinamis(file_path, tingkat_cacat_input, tingkat_diskonto_input, upn_input, kenaikan_gaji_input):
     try:
         df_all = pd.read_excel(file_path)
         header_idx = None
@@ -85,27 +86,69 @@ def muat_tabel_mortalita_dinamis(file_path, tingkat_cacat_input, bunga_diskonto_
                 df_tm[col] = pd.to_numeric(df_tm[col], errors='coerce').fillna(0.0)
         
         if 'qxi' in df_tm.columns:
-            df_tm['qxi_prop'] = df_tm['qxi'] / 0.05
-            df_tm['qxi_dinamis'] = df_tm['qxi_prop'] * tingkat_cacat_input
+            # df_tm['qxi_prop'] = df_tm['qxi'] / 0.05
+            # df_tm['qxi_dinamis'] = df_tm['qxi_prop'] * tingkat_cacat_input
+            df_tm['qxi'] = df_tm['qxd'] * tingkat_cacat_input
         else:
             df_tm['qxi_dinamis'] = tingkat_cacat_input
             
-        v = 1 / (1 + bunga_diskonto_input)
+        v = 1 / (1 + tingkat_diskonto_input)
+        s = 1 + kenaikan_gaji_input
+        upn_int = int(upn_input)
         lx = 100000.0
-        df_tm['lx_dinamis'] = 0.0
-        df_tm['sDx_dinamis'] = 0.0
+
+        # df_tm['lx_dinamis'] = 0.0
+        # df_tm['sDx_dinamis'] = 0.0
+
+        # Siapkan kolom kosong untuk kalkulasi ulang
+        kolom_baru = ['lx', 'dx', 'ix', 'wx', 'rx', 'sDx', 'sCxr', 'sCxd', 'sCxi', 'sCxw']
+        for k in kolom_baru:
+            df_tm[k] = 0.0
         
         for x in sorted(df_tm.index):
-            # Isikan nilai lx hidup awal periode sebelum dikurangi decrement tahun berjalan
-            df_tm.loc[x, 'lx_dinamis'] = lx
-            df_tm.loc[x, 'sDx_dinamis'] = lx * (v ** x)
+            if x < upn_int:
+                df_tm.loc[x, 'qxr'] = 0.0
+            elif x == upn_int:
+                df_tm.loc[x, 'qxr'] = 1.0
+                df_tm.loc[x, 'qxd'] = 0.0
+                df_tm.loc[x, 'qxi'] = 0.0
+                df_tm.loc[x, 'qxw'] = 0.0
+            else:
+                df_tm.loc[x, 'qxr'] = 0.0
+                df_tm.loc[x, 'qxd'] = 0.0
+                df_tm.loc[x, 'qxi'] = 0.0
+                df_tm.loc[x, 'qxw'] = 0.0
+                lx = 0.0  # Di atas UPN, populasi dianggap habis/selesai
+
+            df_tm.loc[x, 'lx'] = lx
             
             qxd = float(df_tm.loc[x, 'qxd'])
-            qxi = float(df_tm.loc[x, 'qxi_dinamis'])
-            qxw = float(df_tm.loc[x, 'qxw']) if 'qxw' in df_tm.columns else 0.0
+            qxi = float(df_tm.loc[x, 'qxi'])
+            qxw = float(df_tm.loc[x, 'qxw'])
+            qxr = float(df_tm.loc[x, 'qxr'])
             
-            # Replikasi Logika Komposit Probabilitas Bertahan Hidup (px) Excel:
-            # px = (1 - qxd) * (1 - qxi) * (1 - qxw)
+            # Hitung decrement jiwa riil per baris usia
+            dx_val = lx * qxd
+            ix_val = lx * qxi
+            wx_val = lx * qxw
+            rx_val = lx * qxr
+            
+            df_tm.loc[x, 'dx'] = dx_val
+            df_tm.loc[x, 'ix'] = ix_val
+            df_tm.loc[x, 'wx'] = wx_val
+            df_tm.loc[x, 'rx'] = rx_val
+            
+            # Kalkulasi Nilai Komutasi Moneter Keuangan
+            df_tm.loc[x, 'sDx'] = lx * (v ** x) * (s ** x)
+            
+            # Faktor Klaim Pertengahan Tahun (pangkat t + 0.5)
+            df_tm.loc[x, 'sCxd'] = dx_val * (v ** (x + 0.5)) * (s ** (x + 0.5))
+            df_tm.loc[x, 'sCxi'] = ix_val * (v ** (x + 0.5)) * (s ** (x + 0.5))
+            df_tm.loc[x, 'sCxw'] = wx_val * (v ** (x + 0.5)) * (s ** (x + 0.5))
+            
+            # Pensiun terjadi di akhir/awal tahun diskonto utuh
+            df_tm.loc[x, 'sCxr'] = rx_val * (v ** x) * (s ** x)
+
             px_dinamis = (1.0 - min(1.0, qxd)) * (1.0 - min(1.0, qxi)) * (1.0 - min(1.0, qxw))
             
             # Update nilai lx untuk usia berikutnya (x + 1) dengan jaring pengaman nilai minimal
@@ -116,6 +159,12 @@ def muat_tabel_mortalita_dinamis(file_path, tingkat_cacat_input, bunga_diskonto_
                 lx = lx * 0.999
             else:
                 lx = next_lx
+
+        # lx_pensiun_target = float(df_tm.loc[upn_int, 'lx']) if upn_int in df_tm.index else 0.0
+    
+        # df_tm['l55/lx'] = df_tm['lx'].apply(
+        #     lambda current_lx: lx_pensiun_target / current_lx if current_lx > 0 else 0.0
+        # )
                 
         return df_tm
     except Exception:
@@ -221,14 +270,14 @@ def dapatkan_faktor_uuck(df_uuck, masa_kerja, skenario='pensiun'):
         return float(df_uuck.iloc[posisi][skenario])
 
 def hitung_puc_karyawan_v19(nama_karyawan, usia_sekarang, masa_kerja_sekarang, gaji_sekarang, 
-                            upn, kenaikan_gaji, bunga_diskonto_default, tingkat_cacat, uang_duka=0.0,
+                            upn, kenaikan_gaji, tingkat_diskonto_default, tingkat_cacat, uang_duka=0.0,
                             df_tm=None, df_uuck=None, df_spot_rate=None):
     
     # Amankan tipe data input
     usia_sekarang = float(usia_sekarang) if pd.notna(usia_sekarang) else 0.00
     masa_kerja_sekarang = float(masa_kerja_sekarang) if pd.notna(masa_kerja_sekarang) else 0.00
     gaji_sekarang = float(gaji_sekarang) if pd.notna(gaji_sekarang) else 0.00
-    upn = float(upn) if pd.notna(upn) else 58.0
+    upn = float(upn) if pd.notna(upn) else 60.0
     tingkat_cacat = float(tingkat_cacat) if pd.notna(tingkat_cacat) else 0.00
     uang_duka = float(uang_duka) if pd.notna(uang_duka) else 0.00
 
@@ -256,13 +305,22 @@ def hitung_puc_karyawan_v19(nama_karyawan, usia_sekarang, masa_kerja_sekarang, g
             # Jika ada kolom murni lx hidup gunakan itu, jika tidak ada default ke 100000 atau total radix awal
             if 'lx' in df_tm.columns:
                 lx_sekarang = float(df_tm.loc[usia_sekarang_mortalita, 'lx'])
+                print(f"DEBUG NAMA: {nama_karyawan} | USIA MORTALITA: {usia_sekarang_mortalita} | LX SEKARANG: {lx_sekarang}")
             elif 'lx_dinamis' in df_tm.columns:
                 lx_sekarang = float(df_tm.loc[usia_sekarang_mortalita, 'lx_dinamis'])
 
     selisih_usia = upn - usia_sekarang_bulat
-    sisa_masa_kerja_depan = max(0.0, min(24.0, selisih_usia))            
+    # sisa_masa_kerja_depan = max(0.0, min(24.0, selisih_usia))
+    sisa_masa_kerja_depan = 0
+    
+    if selisih_usia < 0:
+        sisa_masa_kerja_depan = 0.0
+    elif selisih_usia >= 24:
+        sisa_masa_kerja_depan = 24.0
+    else:
+        sisa_masa_kerja_depan = selisih_usia            
 
-    tingkat_bunga_t = dapatkan_spot_rate_dinamis(df_spot_rate, sisa_masa_kerja_depan, bunga_diskonto_default)
+    tingkat_bunga_t = dapatkan_spot_rate_dinamis(df_spot_rate, sisa_masa_kerja_depan, tingkat_diskonto_default)
     faktor_diskonto = (1 / (1 + tingkat_bunga_t))
 
     # =========================================================================
@@ -293,16 +351,19 @@ def hitung_puc_karyawan_v19(nama_karyawan, usia_sekarang, masa_kerja_sekarang, g
             # Ambil nilai murni dari kolom 'dx' atau 'dx_meninggal' sesuai struktur file
             if 'dx' in df_tm.columns:
                 dx_meninggal_val = float(df_tm.loc[usia_proyeksi_bulat, 'dx'])
+                # print(f"DEBUG NAMA: {nama_karyawan} | DX MENINGGAL SEKARANG: {dx_meninggal_val}")
             elif 'dx_meninggal' in df_tm.columns:
                 dx_meninggal_val = float(df_tm.loc[usia_proyeksi_bulat, 'dx_meninggal'])
             # Ambil nilai murni dari kolom 'ix' atau 'ix_cacat' sesuai struktur file
             if 'ix' in df_tm.columns:
                 dx_cacat_val = float(df_tm.loc[usia_proyeksi_bulat, 'ix'])
+                # print(f"DEBUG NAMA: {nama_karyawan} | IX CACAT SEKARANG: {dx_cacat_val}")
             elif 'ix_cacat' in df_tm.columns:
                 dx_cacat_val = float(df_tm.loc[usia_proyeksi_bulat, 'ix_cacat'])
             # Ambil nilai murni dari kolom 'wx' atau 'wx_resign' sesuai struktur file
             if 'wx' in df_tm.columns:
                 dx_resign_val = float(df_tm.loc[usia_proyeksi_bulat, 'wx'])
+                # print(f"DEBUG NAMA: {nama_karyawan} | WX RESIGN SEKARANG: {dx_resign_val}")
             elif 'wx_resign' in df_tm.columns:
                 dx_resign_val = float(df_tm.loc[usia_proyeksi_bulat, 'wx_resign'])
 
@@ -313,7 +374,7 @@ def hitung_puc_karyawan_v19(nama_karyawan, usia_sekarang, masa_kerja_sekarang, g
 
         # 3. KOREKSI DISKONTO & GAJI KUMULATIF BERDASARKAN SPOT RATE TAHUN t
         # tingkat_bunga_t = dapatkan_spot_rate_dinamis(df_spot_rate, float(t), bunga_diskonto_default)
-        tingkat_bunga_t = dapatkan_spot_rate_dinamis(df_spot_rate, sisa_masa_kerja_depan, bunga_diskonto_default)
+        tingkat_bunga_t = dapatkan_spot_rate_dinamis(df_spot_rate, sisa_masa_kerja_depan, tingkat_diskonto_default)
         
         # AZ11 ^ BE10 (Discount Factor Kumulatif tahun ke-t)
         # faktor_diskonto = (1 / (1 + tingkat_bunga_t))
@@ -368,27 +429,27 @@ def hitung_puc_karyawan_v19(nama_karyawan, usia_sekarang, masa_kerja_sekarang, g
             "Total Proyeksi Resign": total_proyeksi_resign
         })
 
-        print("------------------------START PROYEKSI MANFAAT--------------------------")
-        print(f"DEBUG {nama_karyawan} | PROYEKSI TAHUN {t} - Usia: {usia_proyeksi_bulat:.2f} | Masa Kerja Skg: {masa_kerja_sekarang:.2f} | Masa Kerja Proyeksi Sesudah: {masa_kerja_proyeksi_sesudah:.2f}")
-        print(f"       Faktor UUCK Meninggal: {round(f_meninggal_t, 1)} | Rasio Meninggal: {rasio_p_meninggal}")
-        print(f"       Faktor UUCK Cacat: {round(f_cacat_t, 1)} | Rasio Cacat: {rasio_p_cacat}")
-        print(f"       Faktor UUCK Resign: {round(f_resign_t, 1)} | Rasio Resign: {rasio_p_resign}")
-        print(f"       Diskonto: {tingkat_bunga_t:.4f} | Faktor Diskonto Proyeksi: {faktor_diskonto:.4f} | Faktor Diskonto Kumulatif: {faktor_diskonto_kumulatif:.4f} | Faktor Diskonto Kumulatif Resign: {faktor_diskonto_kumulatif_resign:.4f}")
-        print(f"       Pembagi Skala: {pembagi_skala} | Faktor Gaji Kumulatif: {faktor_gaji_kumulatif}")
-        print(f"       Gaji Skg: {gaji_sekarang}")
-        print(f"       Hitung Proyeksi Meninggal: {int(round(hitung_nilai_meninggal))}")
-        print(f"       Nilai Proyeksi Meninggal Bagi Skala: {nilai_meninggal_t_pembagi}")
-        print(f"       Nilai Proyeksi Meninggal: {nilai_meninggal_t}")
-        print(f"       Total Nilai Proyeksi Meninggal: {total_proyeksi_meninggal}")
-        print(f"       Hitung Proyeksi Cacat: {int(round(hitung_nilai_cacat))}")
-        print(f"       Nilai Proyeksi Cacat Bagi Skala: {nilai_cacat_t_pembagi}")
-        print(f"       Nilai Proyeksi Cacat: {nilai_cacat_t}")
-        print(f"       Total Nilai Proyeksi Cacat: {total_proyeksi_cacat}")
-        print(f"       Hitung Proyeksi Resign: {int(round(hitung_nilai_resign))}")
-        print(f"       Nilai Proyeksi Resign Bagi Skala: {nilai_resign_t_pembagi}")
-        print(f"       Nilai Proyeksi Resign: {nilai_resign_t}")
-        print(f"       Total Nilai Proyeksi Resign: {total_proyeksi_resign}")
-        print("------------------------------------------------------------------------")
+        # print("------------------------START PROYEKSI MANFAAT--------------------------")
+        # print(f"DEBUG {nama_karyawan} | PROYEKSI TAHUN {t} - Usia: {usia_proyeksi_bulat:.2f} | Masa Kerja Ke Depan: {sisa_masa_kerja_depan} | Masa Kerja Skg: {masa_kerja_sekarang:.2f} | Masa Kerja Proyeksi Sesudah: {masa_kerja_proyeksi_sesudah:.2f}")
+        # print(f"       Faktor UUCK Meninggal: {round(f_meninggal_t, 1)} | Rasio Meninggal: {rasio_p_meninggal}")
+        # print(f"       Faktor UUCK Cacat: {round(f_cacat_t, 1)} | Rasio Cacat: {rasio_p_cacat}")
+        # print(f"       Faktor UUCK Resign: {round(f_resign_t, 1)} | Rasio Resign: {rasio_p_resign}")
+        # print(f"       Diskonto: {tingkat_bunga_t:.4f} | Faktor Diskonto Proyeksi: {faktor_diskonto:.4f} | Faktor Diskonto Kumulatif: {faktor_diskonto_kumulatif:.4f} | Faktor Diskonto Kumulatif Resign: {faktor_diskonto_kumulatif_resign:.4f}")
+        # print(f"       Pembagi Skala: {pembagi_skala} | Faktor Gaji Kumulatif: {faktor_gaji_kumulatif}")
+        # print(f"       Gaji Skg: {gaji_sekarang}")
+        # print(f"       Hitung Proyeksi Meninggal: {int(round(hitung_nilai_meninggal))}")
+        # print(f"       Nilai Proyeksi Meninggal Bagi Skala: {nilai_meninggal_t_pembagi}")
+        # print(f"       Nilai Proyeksi Meninggal: {nilai_meninggal_t}")
+        # print(f"       Total Nilai Proyeksi Meninggal: {total_proyeksi_meninggal}")
+        # print(f"       Hitung Proyeksi Cacat: {int(round(hitung_nilai_cacat))}")
+        # print(f"       Nilai Proyeksi Cacat Bagi Skala: {nilai_cacat_t_pembagi}")
+        # print(f"       Nilai Proyeksi Cacat: {nilai_cacat_t}")
+        # print(f"       Total Nilai Proyeksi Cacat: {total_proyeksi_cacat}")
+        # print(f"       Hitung Proyeksi Resign: {int(round(hitung_nilai_resign))}")
+        # print(f"       Nilai Proyeksi Resign Bagi Skala: {nilai_resign_t_pembagi}")
+        # print(f"       Nilai Proyeksi Resign: {nilai_resign_t}")
+        # print(f"       Total Nilai Proyeksi Resign: {total_proyeksi_resign}")
+        # print("------------------------------------------------------------------------")
 
     # =========================================================================
     # LOGIKA ATRIBUSI BERDASARKAN USIA FILTER (< UPN - 24)
@@ -414,7 +475,7 @@ def hitung_puc_karyawan_v19(nama_karyawan, usia_sekarang, masa_kerja_sekarang, g
         if lx_sekarang > 0:
             faktor_pensiun_aktuaria = lx_pensiun / lx_sekarang
 
-    tingkat_bunga_riil = dapatkan_spot_rate_dinamis(df_spot_rate, sisa_masa_kerja_depan, bunga_diskonto_default)
+    tingkat_bunga_riil = dapatkan_spot_rate_dinamis(df_spot_rate, sisa_masa_kerja_depan, tingkat_diskonto_default)
     factor_diskonto_murni = (1 / (1 + tingkat_bunga_riil)) ** sisa_masa_kerja_depan
 
     nk_pensiun = 0.0
@@ -494,81 +555,75 @@ def hitung_puc_karyawan_v19(nama_karyawan, usia_sekarang, masa_kerja_sekarang, g
         "detail_proyeksi": detail_proyeksi
     }
 
-def proses_puc_seluruh_karyawan(df_mentah, df_tm, df_uuck, df_spot_rate, 
-                                kenaikan_gaji, bunga_diskonto_default, tingkat_cacat, uang_duka=0.0):
-    """
-    Fungsi pembungkus untuk memproses seluruh baris karyawan dari template excel.
-    Mengembalikan DataFrame Pandas desimal murni lengkap untuk kebutuhan Audit Pop-Up UI.
-    """
-    header_idx = 0
-    for idx, row in df_mentah.iterrows():
-        row_str = [str(x).strip().upper() for x in row.values]
-        if 'NIK' in row_str or 'AKTIF TAHUN INI' in row_str:
-            header_idx = idx
-            break
-            
-    headers = [str(h).strip() for h in df_mentah.iloc[header_idx].values]
-    df_data = df_mentah.iloc[header_idx + 1:].reset_index(drop=True)
-    df_data.columns = headers
+def proses_puc_seluruh_karyawan(df_aktif, df_tm, df_uuck, df_spot_rate, 
+                                kenaikan_gaji, tingkat_diskonto_default, tingkat_cacat, upn, uang_duka=0.0):
     
     list_hasil_puc = []
-    
-    for idx, row in df_data.iterrows():
-        nama = str(row.iloc[2]).strip().upper() # Kolom C
-        
-        if pd.isna(row.iloc[2]) or nama in ['', 'NAN', 'NONE', 'TOTAL']:
-            continue
-            
+    tanggal_valuasi = datetime(2025, 12, 31)
+
+    # Looping langsung dari data yang sudah siap
+    for idx, kary in df_aktif.iterrows():
         try:
-            usia = float(row.get('Usia', 0.0)) if 'Usia' in df_data.columns else float(row.iloc[4])
-            mk = float(row.get('Masa Kerja', 0.0)) if 'Masa Kerja' in df_data.columns else float(row.iloc[5])
-            gaji = float(row.get('Gaji', 0.0)) if 'Gaji' in df_data.columns else float(row.iloc[6])
-            upn = float(row.get('UPN', 56.0)) if 'UPN' in df_data.columns else 56.0
-        except Exception:
-            continue
+            nama = str(kary["Aktif Tahun Ini"]).strip().upper()
+            nik = str(kary["NIK"])
+            gaji = float(kary["Gaji"])
             
-        # Panggil fungsi v19 bawaan Bapak untuk hitung per orang
-        res_individu = hitung_puc_karyawan_v19(
-            nama_karyawan=nama,
-            usia_sekarang=usia,
-            masa_kerja_sekarang=mk,
-            gaji_sekarang=gaji,
-            upn=upn,
-            kenaikan_gaji=kenaikan_gaji,
-            bunga_diskonto_default=bunga_diskonto_default,
-            tingkat_cacat=tingkat_cacat,
-            uang_duka=uang_duka,
-            df_tm=df_tm,
-            df_uuck=df_uuck,
-            df_spot_rate=df_spot_rate
-        )
-        
-        # 🔍 AMBIL TINGKAT DISKONTO RIIL DARI SPOT RATE DINAMIS
-        # Kita hitung sisa masa kerja depan sama dengan logika internal v19 Bapak
-        selisih_usia = upn - round(usia, 1)
-        sisa_masa_kerja_depan = max(0.0, min(24.0, selisih_usia))
-        
-        # Panggil fungsi dinamis untuk mendapatkan rate riil yang dipakai untuk karyawan ini
-        rate_riil_karyawan = dapatkan_spot_rate_dinamis(df_spot_rate, sisa_masa_kerja_depan, bunga_diskonto_default)
-        
-        row_audit = {
-            "Nama Karyawan": nama,
-            "Usia": usia,
-            "Masa Kerja": mk,
-            "Gaji Terakhir": gaji,
-            "Usia Pensiun": upn,
-            "Rate Diskonto": rate_riil_karyawan, # <-- [BARU] Simpan rate desimal murni (ex: 0.0705)
-            "Gaji Proyeksi": res_individu["gaji_pensiun"],
-            "Total Manfaat Proyeksi": res_individu["total_manfaat"],
-            "Kewajiban Bersih": res_individu["pbo"],
-            "Biaya Jasa Kini": res_individu["csc_final"],
-            "NK Pensiun": res_individu["nk_pensiun"],
-            "NK Meninggal": res_individu["nk_meninggal"],
-            "NK Cacat": res_individu["nk_cacat"],
-            "NK Resign": res_individu["nk_resign"]
-        }
-        list_hasil_puc.append(row_audit)
-        
+            # Ambil tanggal dan hitung pecahan desimal presisi seperti di UI utama
+            tgl_lahir = pd.to_datetime(kary["Tgl Lahir"])
+            tgl_masuk = pd.to_datetime(kary["Tgl Masuk"])
+            
+            usia = (tanggal_valuasi - tgl_lahir).days / 365.25
+            masa_kerja = (tanggal_valuasi - tgl_masuk).days / 365.25
+            
+            usia = max(0.0, round(usia, 2))
+            masa_kerja = max(0.0, round(masa_kerja, 2))
+            upn = float(upn)
+            
+            # Hitung sisa masa kerja depan untuk spot rate
+            selisih_usia = upn - usia
+            
+            if selisih_usia < 0:
+                masa_kerja_ke_depan = 0.0
+            elif selisih_usia >= 24:
+                masa_kerja_ke_depan = 24.0
+            else:
+                masa_kerja_ke_depan = selisih_usia
+            
+            # Dapatkan spot rate individual
+            rate_riil_karyawan = dapatkan_spot_rate_dinamis(df_spot_rate, masa_kerja_ke_depan, tingkat_diskonto_default)
+            
+            # Eksekusi Core Perhitungan
+            res_individu = hitung_puc_karyawan_v19(
+                nama_karyawan=nama, usia_sekarang=usia, masa_kerja_sekarang=masa_kerja, gaji_sekarang=gaji,
+                upn=upn, kenaikan_gaji=kenaikan_gaji, tingkat_diskonto_default=tingkat_diskonto_default,
+                tingkat_cacat=tingkat_cacat, df_tm=df_tm, df_uuck=df_uuck, df_spot_rate=df_spot_rate
+            )
+            
+            list_hasil_puc.append({
+                "Nama Karyawan": nama,
+                "NIK": nik,
+                "Usia": usia,
+                "Masa Kerja": masa_kerja,
+                "Masa Kerja ke Depan": masa_kerja_ke_depan,
+                "Gaji Terakhir": gaji,
+                "Usia Pensiun": upn,
+                "Rate Diskonto Murni": rate_riil_karyawan,
+                "Gaji Proyeksi": res_individu["gaji_pensiun"],
+                "Total Manfaat Proyeksi": res_individu["total_manfaat"],
+                "Kewajiban Bersih": res_individu["pbo"],
+                "Biaya Jasa Kini": res_individu["csc_final"],
+                "NK Pensiun": res_individu["nk_pensiun"],
+                "NK Meninggal": res_individu["nk_meninggal"],
+                "NK Cacat": res_individu["nk_cacat"],
+                "NK Resign": res_individu["nk_resign"]
+            })
+        except Exception as e:
+            print(f"Gagal memproses baris karyawan {kary.get('Aktif Tahun Ini')}: {e}")
+            continue
+
+    if not list_hasil_puc:
+        return pd.DataFrame(columns=["Nama Karyawan", "Kewajiban Bersih", "Biaya Jasa Kini", "Rate Diskonto Murni"])
+
     df_puc_final = pd.DataFrame(list_hasil_puc)
     df_puc_final = df_puc_final.reset_index(drop=True)
     df_puc_final.index = df_puc_final.index + 1
@@ -587,7 +642,7 @@ def muat_data_karyawan_dari_template(file_path):
         # Bersihkan nama kolom agar seragam (lowercase & tanpa spasi)
         df.columns = [str(c).strip().lower() for c in df.columns]
         
-        # Mapping nama kolom agar fleksibel jika ada variasi penamaan di Excel Bapak
+        # Mapping nama kolom agar fleksibel jika ada variasi penamaan di Excel
         rename_dict = {}
         for col in df.columns:
             if 'nama' in col:
