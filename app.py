@@ -192,7 +192,7 @@ total_csc = df_puc_final['Biaya Jasa Kini'].sum()
 rata_rata_bunga_perusahaan = df_puc_final['Rate Diskonto Murni'].mean()
 
 # ---------------------------------------------------------------------
-# [BARU] HITUNG BIAYA BERSIH (TOTAL BEBAN TAHUN BERJALAN)
+# HITUNG BIAYA BERSIH (TOTAL BEBAN TAHUN BERJALAN)
 # ---------------------------------------------------------------------
 total_biaya_bersih = total_csc + total_biaya_bunga + kelebihan_pembayaran + transfer_masuk_nkkip - transfer_keluar_nkkip
 
