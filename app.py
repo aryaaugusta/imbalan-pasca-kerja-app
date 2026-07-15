@@ -40,8 +40,34 @@ tanggal_valuasi = datetime(2025, 12, 31)
 tahun_berjalan = tanggal_valuasi.year
 tahun_lalu_label = str(tahun_berjalan - 1)  # Otomatis mendeteksi "2024" jika valuasi 2025
 
+# ---------------------------------------------------------------------
+# PARAMETER REKONSILIASI KEUANGAN & ARUS DANA NKKIP
+# ---------------------------------------------------------------------
+st.sidebar.markdown("---")
+st.sidebar.subheader("💰 Parameter Perhitungan Aktuaria")
+
+pembayaran_pesangon = st.sidebar.number_input(
+    "Pembayaran Pesangon yang Diakui (Rp)", 
+    min_value=0.0, value=0.0, step=1000000.0
+)
+
+kelebihan_pembayaran = st.sidebar.number_input(
+    "Kelebihan Pembayaran (Rp)", 
+    min_value=0.0, value=0.0, step=1000000.0
+)
+
+transfer_masuk_nkkip = st.sidebar.number_input(
+    "Transfer Masuk NKKIP (Rp)", 
+    min_value=0.0, value=0.0, step=1000000.0
+)
+
+transfer_keluar_nkkip = st.sidebar.number_input(
+    "Transfer Keluar NKKIP (Rp)", 
+    min_value=0.0, value=0.0, step=1000000.0, format="%.2f"
+)
+
 # =========================================================================
-# [BARU] DEFINISI WINDOW POP-UP DETAIL PUC PER KARYAWAN
+# DEFINISI WINDOW POP-UP DETAIL PUC PER KARYAWAN
 # =========================================================================
 @st.dialog("🔍 Detail Rumus PUC Aktuaria", width="large")
 def tampilkan_modal_puc(row_karyawan):
@@ -165,6 +191,11 @@ total_pbo = df_puc_final['Kewajiban Bersih'].sum()
 total_csc = df_puc_final['Biaya Jasa Kini'].sum()
 rata_rata_bunga_perusahaan = df_puc_final['Rate Diskonto Murni'].mean()
 
+# ---------------------------------------------------------------------
+# [BARU] HITUNG BIAYA BERSIH (TOTAL BEBAN TAHUN BERJALAN)
+# ---------------------------------------------------------------------
+total_biaya_bersih = total_csc + total_biaya_bunga + kelebihan_pembayaran + transfer_masuk_nkkip - transfer_keluar_nkkip
+
 # =========================================================================
 # TAMBAH WIDGET TINGKAT DISKONTO KE SIDEBAR SECARA DINAMIS SETELAH DIHITUNG
 # =========================================================================
@@ -182,18 +213,39 @@ st.sidebar.metric(
 st.markdown("---")
 st.subheader(f"📊 Hasil Penilaian Aktuaria PSAK 219 - **{nama_perusahaan}**")
 
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3, col4, col5 = st.columns(5)
 col1.metric(label="JUMLAH KARYAWAN AKTIF", value=f"{len(df_puc_final)} Jiwa")
-col2.metric(label="TOTAL KEWAJIBAN BERSIH (PBO)", value=f"Rp {int(round(total_pbo)):,}".replace(",", "."))
-col3.metric(label="BIAYA JASA KINI (CSC)", value=f"Rp {int(round(total_csc)):,}".replace(",", "."))
+col2.metric(label="TOTAL KEWAJIBAN BERSIH (PBO)", value=f"{int(round(total_pbo)):,}".replace(",", "."))
+col3.metric(label="BIAYA JASA KINI (CSC)", value=f"{int(round(total_csc)):,}".replace(",", "."))
 # col4.metric(label="RERATA TINGKAT DISKONTO", value=f"{rata_rata_bunga_perusahaan * 100:.2f}%")
-col4.metric(label="BIAYA BUNGA (INTEREST COST)", value=f"Rp {total_biaya_bunga:,}".replace(",", "."))
+col4.metric(label="BIAYA BUNGA (INTEREST COST)", value=f"{total_biaya_bunga:,}".replace(",", "."))
+col5.metric(label="BIAYA BERSIH", value=f"{int(round(total_biaya_bersih)):,}".replace(",", "."))
+
+st.markdown("---")
+
+# TABEL RINGKASAN ARUS KAS MUTASI KANTOR KONSULTAN AKTUARIA VAB
+st.subheader("📋 Ringkasan Perhitungan Aktuaria")
+df_arus_kas = pd.DataFrame({
+    "Komponen": [
+        "Pembayaran Pesangon Yang Diakui", 
+        "Kelebihan Pembayaran", 
+        "Transfer Masuk NKKIP", 
+        "Transfer Keluar NKKIP"
+    ],
+    "Nominal Riil": [
+        f"{pembayaran_pesangon:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+        f"{kelebihan_pembayaran:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+        f"{transfer_masuk_nkkip:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+        f"{transfer_keluar_nkkip:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    ]
+})
+st.table(df_arus_kas)
 
 st.markdown("---")
 
 # LAYOUT KUSTOM: DAFTAR KARYAWAN DAN TOMBOL POP-UP DETAIL
-st.subheader("📋 Laporan Perhitungan Per Karyawan")
-st.caption("Klik tombol **🔍 Detail** untuk memverifikasi kalkulasi desimal murni dengan rumus lembar kerja Excel Anda.")
+st.subheader("📋 Laporan Perhitungan Per Karyawan - 31 Desember 2025")
+st.caption("Klik tombol **🔍 Detail** untuk melihat kalkulasi desimal murni dengan rumus lembar kerja Excel Anda.")
 
 # Render Header Row
 col_h1, col_h2, col_h3, col_h4, col_h5 = st.columns([3, 1.5, 2, 2, 1])
@@ -206,16 +258,16 @@ st.markdown("---")
 
 # Render Body Row (Indeks otomatis dari 1 sesuai return core engine)
 for idx, row in df_puc_final.iterrows():
-    col_nama, col_rate, col_pbo, col_csc, col_aksi = st.columns([3, 1.5, 2, 2, 1])
+    col_nama, col_rate, col_pbo, col_csc, col_aksi = st.columns([3, 1.6, 1.6, 1.6, 1])
     
     with col_nama:
         st.write(f"{idx}. **{row['Nama Karyawan']}**")
     with col_rate:
         st.write(f"{row['Rate Diskonto Murni'] * 100:.2f}%")
     with col_pbo:
-        st.write(f"Rp {int(row['Kewajiban Bersih']):,}".replace(",", "."))
+        st.write(f"{int(row['Kewajiban Bersih']):,}".replace(",", "."))
     with col_csc:
-        st.write(f"Rp {int(row['Biaya Jasa Kini']):,}".replace(",", "."))
+        st.write(f"{int(row['Biaya Jasa Kini']):,}".replace(",", "."))
     with col_aksi:
         if st.button("🔍 Detail", key=f"btn_puc_{idx}"):
             tampilkan_modal_puc(row)
