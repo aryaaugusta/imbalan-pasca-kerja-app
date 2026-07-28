@@ -182,7 +182,15 @@ berkas_lengkap = (
 )
 
 if berkas_lengkap:
-    df_aktif = df_raw.dropna(subset=['NIK', 'Aktif Tahun Ini']).copy()
+    # df_aktif = df_raw.dropna(subset=['NIK', 'Aktif Tahun Ini']).copy()
+
+    # print(f"DATA FRAME AKTIF: {df_aktif}")
+
+    # Filter baris yang nama karyawannya ada (tidak NaN), NIK boleh kosong
+    df_aktif = df_raw.dropna(subset=['Aktif Tahun Ini']).copy()
+
+    # Opsional: Rapikan kolom NIK agar jika NaN diubah menjadi string kosong "" atau "-"
+    df_aktif['NIK'] = df_aktif['NIK'].fillna("").astype(str).str.strip()
 
     with st.spinner("Menghitung matriks PUC komparatif seluruh karyawan..."):
         df_puc_final = proses_puc_seluruh_karyawan(
