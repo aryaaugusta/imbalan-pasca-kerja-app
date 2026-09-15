@@ -160,11 +160,11 @@ def muat_tabel_mortalita_dinamis(file_path, tingkat_cacat_input, tingkat_diskont
             else:
                 lx = next_lx
 
-        # lx_pensiun_target = float(df_tm.loc[upn_int, 'lx']) if upn_int in df_tm.index else 0.0
+        lx_pensiun_target = float(df_tm.loc[upn_int, 'lx']) if upn_int in df_tm.index else 0.0
     
-        # df_tm['l55/lx'] = df_tm['lx'].apply(
-        #     lambda current_lx: lx_pensiun_target / current_lx if current_lx > 0 else 0.0
-        # )
+        df_tm['l55/lx'] = df_tm['lx'].apply(
+            lambda current_lx: lx_pensiun_target / current_lx if current_lx > 0 else 0.0
+        )
                 
         return df_tm
     except Exception:

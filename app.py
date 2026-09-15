@@ -46,23 +46,27 @@ tahun_lalu_label = str(tahun_berjalan - 1)  # Otomatis mendeteksi "2024" jika va
 st.sidebar.markdown("---")
 st.sidebar.subheader("💰 Parameter Perhitungan Aktuaria")
 
+pbo_awal = st.sidebar.number_input(
+    "Nilai Kini Kewajiban Pada Awal Tahun", 
+    min_value=0.0, value=0.0, step=1000000.0
+)
 pembayaran_pesangon = st.sidebar.number_input(
-    "Pembayaran Pesangon yang Diakui (Rp)", 
+    "Pembayaran Pesangon yang Diakui", 
     min_value=0.0, value=0.0, step=1000000.0
 )
 
 kelebihan_pembayaran = st.sidebar.number_input(
-    "Kelebihan Pembayaran (Rp)", 
+    "Kelebihan Pembayaran", 
     min_value=0.0, value=0.0, step=1000000.0
 )
 
 transfer_masuk_nkkip = st.sidebar.number_input(
-    "Transfer Masuk NKKIP (Rp)", 
+    "Transfer Masuk NKKIP", 
     min_value=0.0, value=0.0, step=1000000.0
 )
 
 transfer_keluar_nkkip = st.sidebar.number_input(
-    "Transfer Keluar NKKIP (Rp)", 
+    "Transfer Keluar NKKIP", 
     min_value=0.0, value=0.0, step=1000000.0, format="%.2f"
 )
 
@@ -159,6 +163,18 @@ def normalisasi_kolom_karyawan(df):
 
 with file_karyawan:
     uploaded_file = st.file_uploader("1. Unggah Berkas Data Karyawan (.xlsx)", type=["xlsx","xls"])
+    if uploaded_file is not None:
+        try:
+            df_raw = pd.read_excel(uploaded_file, skiprows=10)
+            df_mentah = pd.read_excel(uploaded_file, header=None)
+            nama_perusahaan = ambil_nama_pt_dari_template(df_mentah)
+            st.success("✅ File Data Karyawan Berhasil Dimuat!")
+        except Exception as e:
+            st.error(f"Gagal membaca file Excel Karyawan: {e}")
+            st.stop()
+    else:
+        st.warning("⚠️ Menunggu unggahan Berkas Data Karyawan untuk memulai perhitungan.")
+        st.stop()
 
 with tabel_uuck:
     uploaded_uuck = st.file_uploader("2. Unggah Berkas Template UUCK (.xlsx)", type=["xlsx","xls"])
@@ -168,6 +184,7 @@ with tabel_uuck:
             st.success("✅ Tabel Faktor Manfaat UUCK Aktif!")
         except Exception as e:
             st.error(f"Gagal memproses berkas UUCK: {e}")
+            df_uuck_loaded = None
 
 with tabel_mortalita:
     uploaded_mortality = st.file_uploader("3. Unggah Berkas Tabel Mortalita (.xlsx)", type=["xlsx","xls"])
@@ -181,6 +198,7 @@ with tabel_mortalita:
             st.success("✅ Tabel Mortalita Dinamis Aktif!")
         except Exception as e:
             st.error(f"Gagal memproses berkas Tabel Mortalita: {e}")
+            df_tm_loaded = None
 
 with tabel_spot_rate:
     uploaded_spot_rate = st.file_uploader("4. Unggah Berkas Tabel IGSYC (.xlsx)", type=["xlsx","xls"])
@@ -215,7 +233,7 @@ else:
     st.stop()
 
 # ==========================================
-# PROCESSING CORE ENGINE (CENTRALIZED DATAFRAME)
+# PROCESSING CORE ENGINE
 # ==========================================
 # df_aktif = df_raw.dropna(subset=['NIK', 'Aktif Tahun Ini']).copy()
 
@@ -256,72 +274,163 @@ st.sidebar.metric(
     value=f"{rata_rata_bunga_perusahaan * 100:.2f}%",
     help="Dihitung secara otomatis dari rata-rata tingkat diskonto riil seluruh karyawan aktif"
 )
+# 1. Cek Gerbang Validasi: Pastikan Semua Berkas Utama Sudah Diunggah
+berkas_lengkap = (
+    df_raw is not None and 
+    df_uuck_loaded is not None and 
+    df_spot_rate_loaded is not None and 
+    df_tm_loaded is not None
+)
 
-# ==========================================
-# DISPLAY DASBOR & OUTPUT VISUAL
-# ==========================================
-st.markdown("---")
-st.subheader(f"📊 Hasil Penilaian Aktuaria PSAK 219 - **{nama_perusahaan}**")
+if berkas_lengkap:
+    # df_aktif = df_raw.dropna(subset=['NIK', 'Aktif Tahun Ini']).copy()
 
-col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric(label="JUMLAH KARYAWAN AKTIF", value=f"{len(df_puc_final)} Jiwa")
-col2.metric(label="TOTAL KEWAJIBAN BERSIH (PBO)", value=f"{int(round(total_pbo)):,}".replace(",", "."))
-col3.metric(label="BIAYA JASA KINI (CSC)", value=f"{int(round(total_csc)):,}".replace(",", "."))
-# col4.metric(label="RERATA TINGKAT DISKONTO", value=f"{rata_rata_bunga_perusahaan * 100:.2f}%")
-col4.metric(label="BIAYA BUNGA (INTEREST COST)", value=f"{total_biaya_bunga:,}".replace(",", "."))
-col5.metric(label="BIAYA BERSIH", value=f"{int(round(total_biaya_bersih)):,}".replace(",", "."))
+    # print(f"DATA FRAME AKTIF: {df_aktif}")
 
-st.markdown("---")
+    # Filter baris yang nama karyawannya ada (tidak NaN), NIK boleh kosong
+    df_aktif = df_raw.dropna(subset=['Aktif Tahun Ini']).copy()
 
-# TABEL RINGKASAN ARUS KAS MUTASI KANTOR KONSULTAN AKTUARIA VAB
-st.subheader("📋 Ringkasan Perhitungan Aktuaria")
-df_arus_kas = pd.DataFrame({
-    "Komponen": [
-        "Pembayaran Pesangon Yang Diakui", 
-        "Kelebihan Pembayaran", 
-        "Transfer Masuk NKKIP", 
-        "Transfer Keluar NKKIP"
-    ],
-    "Nominal Riil": [
-        f"{pembayaran_pesangon:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-        f"{kelebihan_pembayaran:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-        f"{transfer_masuk_nkkip:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-        f"{transfer_keluar_nkkip:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    ]
-})
-st.table(df_arus_kas)
+    # Opsional: Rapikan kolom NIK agar jika NaN diubah menjadi string kosong "" atau "-"
+    df_aktif['NIK'] = df_aktif['NIK'].fillna("").astype(str).str.strip()
 
-st.markdown("---")
+    with st.spinner("Menghitung matriks PUC komparatif seluruh karyawan..."):
+        df_puc_final = proses_puc_seluruh_karyawan(
+            df_aktif=df_aktif,
+            df_tm=df_tm_loaded,
+            df_uuck=df_uuck_loaded,
+            df_spot_rate=df_spot_rate_loaded,
+            kenaikan_gaji=kenaikan_gaji,
+            tingkat_diskonto_default=tingkat_diskonto_default,
+            tingkat_cacat=tingkat_cacat,
+            upn=upn,
+            uang_duka=0.0
+        )
 
-# LAYOUT KUSTOM: DAFTAR KARYAWAN DAN TOMBOL POP-UP DETAIL
-st.subheader("📋 Laporan Perhitungan Per Karyawan - 31 Desember 2025")
-st.caption("Klik tombol **🔍 Detail** untuk melihat kalkulasi desimal murni dengan rumus lembar kerja Excel Anda.")
+    # Eksekusi kalkulasi Biaya Bunga
+    hasil_bunga_obj = hitung_biaya_bunga_dari_template(df_aktif, tahun_lalu_label)
+    total_biaya_bunga = hasil_bunga_obj["total_bunga"]
 
-# Render Header Row
-col_h1, col_h2, col_h3, col_h4, col_h5 = st.columns([3, 1.5, 2, 2, 1])
-col_h1.markdown("**Nama Karyawan**")
-col_h2.markdown("**Rate Diskonto**")
-col_h3.markdown("**Kewajiban Bersih (PBO)**")
-col_h4.markdown("**Biaya Jasa Kini (CSC)**")
-col_h5.markdown("**Aksi**")
-st.markdown("---")
+    # Hitung Agregat Nilai Akhir Perusahaan
+    total_pbo = df_puc_final['Kewajiban Bersih'].sum()
+    total_csc = df_puc_final['Biaya Jasa Kini'].sum()
+    rata_rata_bunga_perusahaan = df_puc_final['Rate Diskonto Murni'].mean()
 
-# Render Body Row (Indeks otomatis dari 1 sesuai return core engine)
-for idx, row in df_puc_final.iterrows():
-    col_nama, col_rate, col_pbo, col_csc, col_aksi = st.columns([3, 1.6, 1.6, 1.6, 1])
+    # ---------------------------------------------------------------------
+    # HITUNG BIAYA BERSIH (TOTAL BEBAN TAHUN BERJALAN)
+    # ---------------------------------------------------------------------
+    total_biaya_bersih = total_csc + total_biaya_bunga + kelebihan_pembayaran + transfer_masuk_nkkip - transfer_keluar_nkkip
+
+    # Hitung Keuntungan / Kerugian Aktuaria
+    total_pengurang_keuntungan_kerugian = (
+        pbo_awal + 
+        total_csc + 
+        total_biaya_bunga + 
+        pembayaran_pesangon + 
+        transfer_masuk_nkkip - 
+        transfer_keluar_nkkip + 
+        kelebihan_pembayaran
+    )
+
+    keuntungan_kerugian_aktuaria = total_pbo - total_pengurang_keuntungan_kerugian
+
+    # =========================================================================
+    # TAMBAH WIDGET TINGKAT DISKONTO KE SIDEBAR SECARA DINAMIS SETELAH DIHITUNG
+    # =========================================================================
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("📈 Hasil Output Tingkat Diskonto")
+    st.sidebar.metric(
+        label="Tingkat Diskonto", 
+        value=f"{rata_rata_bunga_perusahaan * 100:.2f}%",
+        help="Dihitung secara otomatis dari rata-rata tingkat diskonto riil seluruh karyawan aktif"
+    )
+
+    # ==========================================
+    # DISPLAY DASBOR & OUTPUT VISUAL
+    # ==========================================
+    st.markdown("---")
+    st.subheader(f"📊 Hasil Penilaian Aktuaria PSAK 219 - **{nama_perusahaan}**")
+
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    col1.metric(label="JUMLAH KARYAWAN AKTIF", value=f"{len(df_puc_final)} Jiwa")
+    col2.metric(label="TOTAL KEWAJIBAN BERSIH (PBO)", value=f"{int(round(total_pbo)):,}".replace(",", "."))
+    col3.metric(label="BIAYA JASA KINI (CSC)", value=f"{int(round(total_csc)):,}".replace(",", "."))
+    # col4.metric(label="RERATA TINGKAT DISKONTO", value=f"{rata_rata_bunga_perusahaan * 100:.2f}%")
+    col4.metric(label="BIAYA BUNGA (INTEREST COST)", value=f"{total_biaya_bunga:,}".replace(",", "."))
+    col5.metric(label="BIAYA BERSIH", value=f"{int(round(total_biaya_bersih)):,}".replace(",", "."))
+    col6.metric(label="KEUNTUNGAN / KERUGIAN AKTUARIA", value=f"{int(round(keuntungan_kerugian_aktuaria)):,}".replace(",", "."))
+
+    st.markdown("---")
+
+    # TABEL RINGKASAN ARUS KAS MUTASI KANTOR KONSULTAN AKTUARIA VAB
+    st.subheader("📋 Ringkasan Perhitungan Aktuaria")
+    df_arus_kas = pd.DataFrame({
+        "Komponen": [
+            "Nilai Kini Kewajiban Awal Tahun",
+            "Pembayaran Pesangon Yang Diakui", 
+            "Kelebihan Pembayaran", 
+            "Transfer Masuk NKKIP", 
+            "Transfer Keluar NKKIP"
+        ],
+        "Nominal Riil": [
+            f"{pbo_awal:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+            f"{pembayaran_pesangon:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+            f"{kelebihan_pembayaran:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+            f"{transfer_masuk_nkkip:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+            f"{transfer_keluar_nkkip:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        ]
+    })
+    st.table(df_arus_kas)
+
+    st.markdown("---")
+
+    # LAYOUT KUSTOM: DAFTAR KARYAWAN DAN TOMBOL POP-UP DETAIL
+    st.subheader("📋 Laporan Perhitungan Per Karyawan - 31 Desember 2025")
+    st.caption("Klik tombol **🔍 Detail** untuk melihat kalkulasi desimal murni dengan rumus lembar kerja Excel Anda.")
+
+    # Render Header Row
+    col_h1, col_h2, col_h3, col_h4, col_h5 = st.columns([3, 1.5, 2, 2, 1])
+    col_h1.markdown("**Nama Karyawan**")
+    col_h2.markdown("**Rate Diskonto**")
+    col_h3.markdown("**Kewajiban Bersih (PBO)**")
+    col_h4.markdown("**Biaya Jasa Kini (CSC)**")
+    col_h5.markdown("**Aksi**")
+    st.markdown("---")
+
+    # Render Body Row (Indeks otomatis dari 1 sesuai return core engine)
+    for idx, row in df_puc_final.iterrows():
+        col_nama, col_rate, col_pbo, col_csc, col_aksi = st.columns([3, 1.6, 1.6, 1.6, 1])
+        
+        with col_nama:
+            st.write(f"{idx}. **{row['Nama Karyawan']}**")
+        with col_rate:
+            st.write(f"{row['Rate Diskonto Murni'] * 100:.2f}%")
+        with col_pbo:
+            st.write(f"{int(row['Kewajiban Bersih']):,}".replace(",", "."))
+        with col_csc:
+            st.write(f"{int(row['Biaya Jasa Kini']):,}".replace(",", "."))
+        with col_aksi:
+            if st.button("🔍 Detail", key=f"btn_puc_{idx}"):
+                tampilkan_modal_puc(row)
+
+    st.markdown("---")
+    st.subheader("📋 Detail Perhitungan Biaya Bunga per Karyawan (Historis)")
+    st.dataframe(hasil_bunga_obj["tabel_bunga"], use_container_width=True)
+else:
+    st.markdown("---")
+    # st.info("👋 **Selamat Datang di Aplikasi Automasi PSAK 219 Kantor Konsultan Aktuaria VAB!**")
     
-    with col_nama:
-        st.write(f"{idx}. **{row['Nama Karyawan']}**")
-    with col_rate:
-        st.write(f"{row['Rate Diskonto Murni'] * 100:.2f}%")
-    with col_pbo:
-        st.write(f"{int(row['Kewajiban Bersih']):,}".replace(",", "."))
-    with col_csc:
-        st.write(f"{int(row['Biaya Jasa Kini']):,}".replace(",", "."))
-    with col_aksi:
-        if st.button("🔍 Detail", key=f"btn_puc_{idx}"):
-            tampilkan_modal_puc(row)
-
-st.markdown("---")
-st.subheader("📋 Detail Perhitungan Biaya Bunga per Karyawan (Historis)")
-st.dataframe(hasil_bunga_obj["tabel_bunga"], use_container_width=True)
+    st.warning("⚠️ **Perhitungan Belum Dapat Dimulai.** Mohon lengkapi pengunggahan berkas parameter pada tab di atas:")
+    
+    # Buat checklist status indikator berkas secara visual
+    col_status1, col_status2 = st.columns(2)
+    
+    with col_status1:
+        st.write("📁 **1. Data Karyawan:** " + ("🟢 Terunggah" if df_raw is not None else "🔴 Belum Ada"))
+        st.write("📘 **2. Data UUCK:** " + ("🟢 Terunggah" if df_uuck_loaded is not None else "🔴 Belum Ada"))
+        
+    with col_status2:
+        st.write("📊 **3. Tabel Mortalita Dinamis:** " + ("🟢 Terunggah" if df_tm_loaded is not None else "🔴 Belum Ada"))
+        st.write("📈 **4. Data IGSYC:** " + ("🟢 Terunggah" if df_spot_rate_loaded is not None else "🔴 Belum Ada"))
+        
+    st.markdown("---")
+    st.caption("Setelah seluruh berkas indikator di atas berwarna hijau (🟢), sistem *Core Engine* akan otomatis langsung mengeksekusi perhitungan PBO, CSC, dan perhitungan lainnya *real-time*.")
