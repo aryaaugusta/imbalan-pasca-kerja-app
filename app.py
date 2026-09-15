@@ -138,13 +138,13 @@ def normalisasi_kolom_karyawan(df):
         if kolom_nama_target is None:
             if any(kw in col_str for kw in ['aktif', 'nama karyawan', 'nama']):
                 kolom_nama_target = col
-                print(f"DEBUG: FIX KOLOM NAMA UTAMA DIKUNCI -> {col}")
+                # print(f"DEBUG: FIX KOLOM NAMA UTAMA DIKUNCI -> {col}")
                 
         # 2. Kunci HANYA kolom NIK/NOPEG yang PERTAMA KALI ditemukan
         if kolom_nik_target is None:
             if any(kw in col_str for kw in ['nik', 'nopeg', 'no.peg', 'nip', 'id karyawan', 'no pegawai']):
                 kolom_nik_target = col
-                print(f"DEBUG: FIX KOLOM NIK UTAMA DIKUNCI -> {col}")
+                # print(f"DEBUG: FIX KOLOM NIK UTAMA DIKUNCI -> {col}")
 
     # Lakukan Rename ke format standar internal
     mapping_rename = {}
@@ -221,7 +221,7 @@ if uploaded_file is not None:
         if 'Aktif Tahun Ini' in df_raw.columns:
             df_aktif = df_raw.dropna(subset=['Aktif Tahun Ini']).copy()
             df_aktif['NIK'] = df_aktif['NIK'].fillna("-").astype(str).str.strip()
-            st.success("✅ File Data Karyawan Berhasil Dimuat & Kolom Disesuaikan Otomatis!")
+            # st.success("✅ File Data Karyawan Berhasil Dimuat & Kolom Disesuaikan Otomatis!")
         else:
             st.error("❌ Kolom Nama Karyawan/Aktif tidak ditemukan. Harap pastikan header tabel mengandung kata 'Aktif' atau 'Nama'.")
             df_aktif = None
