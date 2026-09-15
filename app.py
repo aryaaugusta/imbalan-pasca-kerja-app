@@ -117,11 +117,51 @@ df_uuck_loaded = None
 df_tm_loaded = None
 df_spot_rate_loaded = None
 
+def normalisasi_kolom_karyawan(df):
+    """
+    Mendeteksi dan me-rename nama kolom Excel secara dinamis.
+    Mengunci kolom 'Aktif' dan 'NIK' pertama yang ditemukan dari kiri tabel.
+    """
+    df_clean = df.copy()
+    
+    kolom_nama_target = None
+    kolom_nik_target = None
+    
+    for col in df_clean.columns:
+        col_str = str(col).strip().lower()
+        
+        # 1. Kunci HANYA kolom Nama/Aktif yang PERTAMA KALI ditemukan
+        if kolom_nama_target is None:
+            if any(kw in col_str for kw in ['aktif', 'nama karyawan', 'nama']):
+                kolom_nama_target = col
+                print(f"DEBUG: FIX KOLOM NAMA UTAMA DIKUNCI -> {col}")
+                
+        # 2. Kunci HANYA kolom NIK/NOPEG yang PERTAMA KALI ditemukan
+        if kolom_nik_target is None:
+            if any(kw in col_str for kw in ['nik', 'nopeg', 'no.peg', 'nip', 'id karyawan', 'no pegawai']):
+                kolom_nik_target = col
+                print(f"DEBUG: FIX KOLOM NIK UTAMA DIKUNCI -> {col}")
+
+    # Lakukan Rename ke format standar internal
+    mapping_rename = {}
+    if kolom_nama_target:
+        mapping_rename[kolom_nama_target] = 'Aktif Tahun Ini'
+    if kolom_nik_target:
+        mapping_rename[kolom_nik_target] = 'NIK'
+        
+    df_clean = df_clean.rename(columns=mapping_rename)
+    
+    # Jika kolom NIK tidak ada di file Excel, siapkan kolom dummy
+    if 'NIK' not in df_clean.columns:
+        df_clean['NIK'] = "-"
+        
+    return df_clean
+
 with file_karyawan:
-    uploaded_file = st.file_uploader("1. Unggah Berkas Data Karyawan (.xlsx)", type=["xlsx"])
+    uploaded_file = st.file_uploader("1. Unggah Berkas Data Karyawan (.xlsx)", type=["xlsx","xls"])
 
 with tabel_uuck:
-    uploaded_uuck = st.file_uploader("2. Unggah Berkas Template UUCK (.xlsx)", type=["xlsx"])
+    uploaded_uuck = st.file_uploader("2. Unggah Berkas Template UUCK (.xlsx)", type=["xlsx","xls"])
     if uploaded_uuck is not None:
         try:
             df_uuck_loaded = muat_template_uuck(uploaded_uuck)
@@ -130,7 +170,7 @@ with tabel_uuck:
             st.error(f"Gagal memproses berkas UUCK: {e}")
 
 with tabel_mortalita:
-    uploaded_mortality = st.file_uploader("3. Unggah Berkas Tabel Mortalita (.xlsx)", type=["xlsx"])
+    uploaded_mortality = st.file_uploader("3. Unggah Berkas Tabel Mortalita (.xlsx)", type=["xlsx","xls"])
     if uploaded_mortality is not None:
         try:
             df_tm_loaded = muat_tabel_mortalita_dinamis(uploaded_mortality, 
@@ -143,7 +183,7 @@ with tabel_mortalita:
             st.error(f"Gagal memproses berkas Tabel Mortalita: {e}")
 
 with tabel_spot_rate:
-    uploaded_spot_rate = st.file_uploader("4. Unggah Berkas Tabel IGSYC (.xlsx)", type=["xlsx"])
+    uploaded_spot_rate = st.file_uploader("4. Unggah Berkas Tabel IGSYC (.xlsx)", type=["xlsx","xls"])
     if uploaded_spot_rate is not None:
         try:
             df_spot_rate_loaded = muat_tabel_spot_rate(uploaded_spot_rate)
@@ -154,9 +194,19 @@ with tabel_spot_rate:
 if uploaded_file is not None:
     try:
         df_raw = pd.read_excel(uploaded_file, skiprows=10)
-        df_mentah = pd.read_excel(uploaded_file, header=None)
-        nama_perusahaan = ambil_nama_pt_dari_template(df_mentah)
-        st.success("✅ File Data Karyawan Berhasil Dimuat!")
+        # Normalisasi nama kolom secara dinamis (mengubah NOPEG -> NIK, Aktif 2025 -> Aktif Tahun Ini)
+        df_raw = normalisasi_kolom_karyawan(df_raw)
+        df_ambil_nama_pt = pd.read_excel(uploaded_file, header=None)
+        nama_perusahaan = ambil_nama_pt_dari_template(df_ambil_nama_pt)
+        # st.success("✅ File Data Karyawan Berhasil Dimuat!")
+        # Filter aman: pastikan kolom 'Aktif Tahun Ini' ada sebelum di-dropna
+        if 'Aktif Tahun Ini' in df_raw.columns:
+            df_aktif = df_raw.dropna(subset=['Aktif Tahun Ini']).copy()
+            df_aktif['NIK'] = df_aktif['NIK'].fillna("-").astype(str).str.strip()
+            st.success("✅ File Data Karyawan Berhasil Dimuat & Kolom Disesuaikan Otomatis!")
+        else:
+            st.error("❌ Kolom Nama Karyawan/Aktif tidak ditemukan. Harap pastikan header tabel mengandung kata 'Aktif' atau 'Nama'.")
+            df_aktif = None
     except Exception as e:
         st.error(f"Gagal membaca file Excel Karyawan: {e}")
         st.stop()
@@ -167,7 +217,7 @@ else:
 # ==========================================
 # PROCESSING CORE ENGINE (CENTRALIZED DATAFRAME)
 # ==========================================
-df_aktif = df_raw.dropna(subset=['NIK', 'Aktif Tahun Ini']).copy()
+# df_aktif = df_raw.dropna(subset=['NIK', 'Aktif Tahun Ini']).copy()
 
 with st.spinner("Menghitung matriks PUC komparatif seluruh karyawan..."):
     df_puc_final = proses_puc_seluruh_karyawan(

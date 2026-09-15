@@ -305,7 +305,7 @@ def hitung_puc_karyawan_v19(nama_karyawan, usia_sekarang, masa_kerja_sekarang, g
             # Jika ada kolom murni lx hidup gunakan itu, jika tidak ada default ke 100000 atau total radix awal
             if 'lx' in df_tm.columns:
                 lx_sekarang = float(df_tm.loc[usia_sekarang_mortalita, 'lx'])
-                print(f"DEBUG NAMA: {nama_karyawan} | USIA MORTALITA: {usia_sekarang_mortalita} | LX SEKARANG: {lx_sekarang}")
+                # print(f"DEBUG NAMA: {nama_karyawan} | USIA MORTALITA: {usia_sekarang_mortalita} | LX SEKARANG: {lx_sekarang}")
             elif 'lx_dinamis' in df_tm.columns:
                 lx_sekarang = float(df_tm.loc[usia_sekarang_mortalita, 'lx_dinamis'])
 
