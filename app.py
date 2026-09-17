@@ -1,7 +1,8 @@
-# app.py
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import openpyxl
+import io
 
 # Import logika baru dari core engine
 from core.kalkulator_puc import (
@@ -48,6 +49,10 @@ st.sidebar.subheader("💰 Parameter Perhitungan Aktuaria")
 
 pbo_awal = st.sidebar.number_input(
     "Nilai Kini Kewajiban Pada Awal Tahun", 
+    min_value=0.0, value=0.0, step=1000000.0
+)
+pbo_akhir = st.sidebar.number_input(
+    "Nilai Kini Kewajiban Pada Akhir Tahun", 
     min_value=0.0, value=0.0, step=1000000.0
 )
 pembayaran_pesangon = st.sidebar.number_input(
@@ -264,16 +269,6 @@ rata_rata_bunga_perusahaan = df_puc_final['Rate Diskonto Murni'].mean()
 # ---------------------------------------------------------------------
 total_biaya_bersih = total_csc + total_biaya_bunga + kelebihan_pembayaran + transfer_masuk_nkkip - transfer_keluar_nkkip
 
-# =========================================================================
-# TAMBAH WIDGET TINGKAT DISKONTO KE SIDEBAR SECARA DINAMIS SETELAH DIHITUNG
-# =========================================================================
-st.sidebar.markdown("---")
-st.sidebar.subheader("📈 Hasil Output Tingkat Diskonto")
-st.sidebar.metric(
-    label="Tingkat Diskonto", 
-    value=f"{rata_rata_bunga_perusahaan * 100:.2f}%",
-    help="Dihitung secara otomatis dari rata-rata tingkat diskonto riil seluruh karyawan aktif"
-)
 # 1. Cek Gerbang Validasi: Pastikan Semua Berkas Utama Sudah Diunggah
 berkas_lengkap = (
     df_raw is not None and 
@@ -434,3 +429,186 @@ else:
         
     st.markdown("---")
     st.caption("Setelah seluruh berkas indikator di atas berwarna hijau (🟢), sistem *Core Engine* akan otomatis langsung mengeksekusi perhitungan PBO, CSC, dan perhitungan lainnya *real-time*.")
+
+def generate_excel_output_from_template(template_bytes, context_data):
+    """
+    Mengisi template Excel (template_output.xlsx) secara presisi berdasarkan 
+    hasil kalkulasi aktuaria dinamis dari aplikasi.
+    """
+    wb = openpyxl.load_workbook(io.BytesIO(template_bytes))
+    ws = wb.active
+    
+    # -------------------------------------------------------------------------
+    # 1. BINDER HEADER UTAMA PERUSAHAAN & PERIODE
+    # -------------------------------------------------------------------------
+    raw_pt = str(context_data.get('nama_perusahaan', 'ARTHA SOLUTIONS INDONESIA')).strip()
+    if raw_pt.upper().startswith("PT"):
+        nama_pt = raw_pt.upper()
+    else:
+        nama_pt = f"PT {raw_pt.upper()}"
+        
+    ws['A5'] = nama_pt  # Nama PT (Baris 5, Kolom A)
+    ws['A6'] = f"PER 31 DESEMBER {context_data.get('tahun_val', '2025')}"
+    
+    # Header Tanggal Kolom C (2024-12-31) dan D (2025-12-31)
+    tahun_val = int(context_data.get('tahun_val', 2025))
+    ws['C8'] = f"31 Desember 2024"
+    ws['D8'] = f"31 Desember 2025"
+    ws['C57'] = f"31 Desember 2024"
+    ws['D57'] = f"31 Desember 2025"
+
+    # -------------------------------------------------------------------------
+    # 2. ASUMSI DAN METODE AKTUARIA
+    # -------------------------------------------------------------------------
+    ws['D12'] = context_data.get('bunga_diskonto', 0.0)         # Tingkat Diskonto
+    ws['D13'] = context_data.get('kenaikan_gaji', 0.0)          # Kenaikan Gaji
+    ws['D15'] = context_data.get('tingkat_cacat', 0.0)          # Tingkat Cacat
+    ws['D18'] = context_data.get('upn', 60)                     # Usia Pensiun Normal
+
+    # -------------------------------------------------------------------------
+    # 3. STATISTIK DATA KARYAWAN
+    # -------------------------------------------------------------------------
+    rata_usia = context_data.get('rata_usia', 0.0)
+    upn_val = context_data.get('upn', 60)
+    
+    # Formula Dinamis: Rata-Rata Sisa Masa Kerja = UPN - Rata-Rata Usia
+    rata_sisa_mk_hitung = max(0.0, upn_val - rata_usia)
+
+    ws['D22'] = context_data.get('jumlah_karyawan', 0)          # Jumlah Karyawan
+    ws['D23'] = context_data.get('total_gaji_sebulan', 0.0)      # Total Gaji
+    ws['D24'] = rata_usia                                       # Rata-rata Usia
+    ws['D25'] = context_data.get('rata_masa_kerja', 0.0)        # Rata-rata Masa Kerja
+    ws['D26'] = rata_sisa_mk_hitung                             # Rata-rata Sisa Masa Kerja
+
+    # -------------------------------------------------------------------------
+    # 4. REKONSILIASI ARUS DANA & MUTASI
+    # -------------------------------------------------------------------------
+    pembayaran_pesangon = context_data.get('pembayaran_pesangon', 0.0)
+    kelebihan_pembayaran = context_data.get('kelebihan_pembayaran', 0.0)
+    transfer_masuk = context_data.get('transfer_masuk_nkkip', 0.0)
+    transfer_keluar = context_data.get('transfer_keluar_nkkip', 0.0)
+
+    ws['D28'] = pembayaran_pesangon
+    ws['D29'] = kelebihan_pembayaran
+
+    # -------------------------------------------------------------------------
+    # 5. NILAI PBO & BIAYA IMBALAN KERJA
+    # -------------------------------------------------------------------------
+    total_pbo_awal = context_data.get('total_pbo_awal', 0.0)
+    total_pbo_akhir = context_data.get('total_pbo_akhir', 0.0)  # Total Kewajiban Bersih (PBO)
+    total_csc = context_data.get('total_csc', 0.0)
+    total_biaya_bunga = context_data.get('total_biaya_bunga', 0.0)
+    
+    # Validation PBO Awal
+    if total_pbo_awal == 0 or total_pbo_awal is None:
+        gain_loss_final = 0.0
+    else:
+        gain_loss_final = context_data.get('keuntungan_kerugian_aktuaria', 0.0)
+
+    # PERHITUNGAN BIAYA JASA LALU (Cell D72) = D33 - D34 (PBO Akhir - CSC)
+    biaya_jasa_lalu_calc = total_pbo_akhir - total_csc
+
+    # Perhitungan Aktuaria Ringkasan Atas
+    ws['D32'] = total_pbo_awal
+    ws['D33'] = total_pbo_akhir                                 # Nilai Kini Kewajiban Akhir (2025)
+    ws['D34'] = total_csc                                       # Biaya Jasa Kini
+    ws['D35'] = total_biaya_bunga
+
+    # Ringkasan Kewajiban Bersih
+    ws['D61'] = total_pbo_akhir                                 # Nilai Kini Kewajiban Pada Akhir Tahun
+    ws['D65'] = total_pbo_akhir                                 # Kewajiban Bersih
+
+    # -------------------------------------------------------------------------
+    # 🔥 FIX: RINGKASAN BIAYA BERSIH (P&L) LENGKAP KESELURUHAN (Cell D68 - D79)
+    # -------------------------------------------------------------------------
+    ws['D68'] = total_csc
+    ws['D69'] = total_biaya_bunga
+    ws['D72'] = biaya_jasa_lalu_calc                            # Biaya Jasa Lalu = D33 - D34
+    ws['D74'] = transfer_masuk
+    ws['D75'] = transfer_keluar
+    ws['D76'] = kelebihan_pembayaran
+
+    # Total Keseluruhan Nilai di Bagian Biaya Bersih (D79)
+    total_biaya_bersih_keseluruhan = (
+        total_csc + 
+        total_biaya_bunga + 
+        biaya_jasa_lalu_calc + 
+        transfer_masuk - 
+        transfer_keluar + 
+        kelebihan_pembayaran
+    )
+    ws['D79'] = total_biaya_bersih_keseluruhan                  # Hasil total akurat (misal: 199.967.448)
+
+    # -------------------------------------------------------------------------
+    # 6. REKONSILIASI KEWAJIBAN
+    # -------------------------------------------------------------------------
+    ws['D82'] = total_pbo_awal                                  # Nilai Kini Kewajiban awal tahun
+    ws['D83'] = total_csc                                       # Biaya Jasa Kini
+    ws['D84'] = total_biaya_bunga                               # Biaya Bunga
+    ws['D85'] = pembayaran_pesangon                             # Pembayaran Manfaat
+    ws['D88'] = biaya_jasa_lalu_calc                            # Biaya Jasa Lalu
+    ws['D89'] = transfer_masuk                                  # Transfer Masuk NKKIP
+    ws['D90'] = transfer_keluar                                 # Transfer Keluar NKKIP
+    ws['D91'] = kelebihan_pembayaran                            # Kelebihan Pembayaran
+    ws['D93'] = gain_loss_final                                 # Gain/Loss Aktuaria
+    ws['D94'] = total_pbo_akhir                                 # Nilai Kini Kewajiban Akhir (2025)
+
+    # Simpan workbook ke memory buffer
+    output_buffer = io.BytesIO()
+    wb.save(output_buffer)
+    output_buffer.seek(0)
+    
+    return output_buffer.getvalue()
+
+# =========================================================================
+# BLOK EKSPOR FILE EXCEL LAPORAN LENGKAP
+# =========================================================================
+st.markdown("---")
+st.subheader("📥 Unduh Laporan Valuasi Aktuaria PSAK 219")
+
+# Baca file template_output.xlsx dari folder lokal
+try:
+    with open("data/file/template_output.xlsx", "rb") as f:
+        template_bytes = f.read()
+
+    # Rakit kamus data kontekstual dari hasil kalkulasi aktif
+    context_data = {
+        'nama_perusahaan': nama_perusahaan if 'nama_perusahaan' in locals() and nama_perusahaan else "ARTHA SOLUTIONS INDONESIA",
+        'tahun_val': 2025,
+        'bunga_diskonto': rata_rata_bunga_perusahaan,
+        'kenaikan_gaji': kenaikan_gaji,
+        'tingkat_cacat': tingkat_cacat,
+        'upn': upn,
+        'jumlah_karyawan': len(df_puc_final),
+        'total_gaji_sebulan': pd.to_numeric(df_aktif['Gaji'], errors='coerce').sum() if 'Gaji' in df_aktif.columns else 0.0,
+        'rata_usia': df_puc_final['Usia'].mean() if 'Usia' in df_puc_final.columns else 0.0,
+        'rata_masa_kerja': df_puc_final['Masa Kerja'].mean() if 'Masa Kerja' in df_puc_final.columns else 0.0,
+        
+        # Parameter Arus Dana & Mutasi
+        'pembayaran_pesangon': pembayaran_pesangon,
+        'kelebihan_pembayaran': kelebihan_pembayaran,
+        'transfer_masuk_nkkip': transfer_masuk_nkkip,
+        'transfer_keluar_nkkip': transfer_keluar_nkkip,
+        
+        # 🔥 FIX: Ambil PBO Awal & PBO Akhir Murni Hasil Kalkulasi Sistem
+        'total_pbo_awal': pbo_awal,
+        'total_pbo_akhir': total_pbo,   # <-- Menggunakan total_pbo hasil hitungan PUC murni
+        'total_csc': total_csc,
+        'total_biaya_bunga': total_biaya_bunga,
+        'keuntungan_kerugian_aktuaria': keuntungan_kerugian_aktuaria
+    }
+
+    # Generate buffer file excel baru
+    excel_data = generate_excel_output_from_template(template_bytes, context_data)
+
+    # Render Tombol Unduh
+    st.download_button(
+        label="📄 Unduh Laporan Laporan Pengakuan & Pengukuran Excel (.xlsx)",
+        data=excel_data,
+        file_name=f"Laporan-Aktuaria-PSAK-Atribusi-UUCK-{nama_perusahaan.replace(' ', '_')}-31-Des-2025.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
+
+except FileNotFoundError:
+    st.error("⚠️ File 'template_output.xlsx' tidak ditemukan di folder proyek")
