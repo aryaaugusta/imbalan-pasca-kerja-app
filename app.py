@@ -432,8 +432,8 @@ else:
 
 def generate_excel_output_from_template(template_bytes, context_data):
     """
-    Mengisi template Excel (template_output.xlsx) secara presisi berdasarkan 
-    hasil kalkulasi aktuaria dinamis dari aplikasi.
+    Mengisi template Excel (template_output.xlsx) secara presisi dengan 
+    dukungan perbandingan komparatif 2 periode (2024 vs 2025).
     """
     wb = openpyxl.load_workbook(io.BytesIO(template_bytes))
     ws = wb.active
@@ -447,7 +447,7 @@ def generate_excel_output_from_template(template_bytes, context_data):
     else:
         nama_pt = f"PT {raw_pt.upper()}"
         
-    ws['A5'] = nama_pt  # Nama PT (Baris 5, Kolom A)
+    ws['A5'] = nama_pt  # Nama PT
     ws['A6'] = f"PER 31 DESEMBER {context_data.get('tahun_val', '2025')}"
     
     # Header Tanggal Kolom C (2024-12-31) dan D (2025-12-31)
@@ -470,8 +470,6 @@ def generate_excel_output_from_template(template_bytes, context_data):
     # -------------------------------------------------------------------------
     rata_usia = context_data.get('rata_usia', 0.0)
     upn_val = context_data.get('upn', 60)
-    
-    # Formula Dinamis: Rata-Rata Sisa Masa Kerja = UPN - Rata-Rata Usia
     rata_sisa_mk_hitung = max(0.0, upn_val - rata_usia)
 
     ws['D22'] = context_data.get('jumlah_karyawan', 0)          # Jumlah Karyawan
@@ -492,66 +490,87 @@ def generate_excel_output_from_template(template_bytes, context_data):
     ws['D29'] = kelebihan_pembayaran
 
     # -------------------------------------------------------------------------
-    # 5. NILAI PBO & BIAYA IMBALAN KERJA
+    # 5. PEMETIKAN LOGIKA DINAMIS PBO 2024 (KOLOM C) vs 2025 (KOLOM D)
     # -------------------------------------------------------------------------
-    total_pbo_awal = context_data.get('total_pbo_awal', 0.0)
-    total_pbo_akhir = context_data.get('total_pbo_akhir', 0.0)  # Total Kewajiban Bersih (PBO)
+    input_pbo_awal = context_data.get('total_pbo_awal', 0.0)    # Nilai Awal Tahun (Sidebar)
+    input_pbo_akhir = context_data.get('input_pbo_akhir', 0.0)  # Nilai Akhir Tahun (Sidebar)
+    
+    total_pbo_2025 = context_data.get('total_pbo_akhir', 0.0)   # Hasil Kalkulasi PUC 2025 murni
     total_csc = context_data.get('total_csc', 0.0)
     total_biaya_bunga = context_data.get('total_biaya_bunga', 0.0)
-    
-    # Validation PBO Awal
-    if total_pbo_awal == 0 or total_pbo_awal is None:
+
+    # 🔥 KONDISI DINAMIS KETIKA INPUTAN SIDEBAR TIDAK SAMANENGAN 0
+    if input_pbo_awal > 0 or input_pbo_akhir > 0:
+        pbo_awal_2024 = input_pbo_awal
+        pbo_akhir_2024 = input_pbo_akhir
+        pbo_awal_2025 = input_pbo_akhir  # Akhir 2024 menjadi Awal 2025
+    else:
+        pbo_awal_2024 = 0.0
+        pbo_akhir_2024 = 0.0
+        pbo_awal_2025 = 0.0
+
+    # Biaya Jasa Lalu 2025 = PBO 2025 - CSC
+    biaya_jasa_lalu_calc = total_pbo_2025 - total_csc
+
+    # Validation Gain / Loss Aktuaria
+    if pbo_awal_2025 == 0:
         gain_loss_final = 0.0
     else:
         gain_loss_final = context_data.get('keuntungan_kerugian_aktuaria', 0.0)
 
-    # PERHITUNGAN BIAYA JASA LALU (Cell D72) = D33 - D34 (PBO Akhir - CSC)
-    biaya_jasa_lalu_calc = total_pbo_akhir - total_csc
-
-    # Perhitungan Aktuaria Ringkasan Atas
-    ws['D32'] = total_pbo_awal
-    ws['D33'] = total_pbo_akhir                                 # Nilai Kini Kewajiban Akhir (2025)
-    ws['D34'] = total_csc                                       # Biaya Jasa Kini
+    # -------------------------------------------------------------------------
+    # A. ISIAN TABEL PERHITUNGAN AKTUARIA (BARIS 31–38)
+    # -------------------------------------------------------------------------
+    # Kolom C (31 Des 2024)
+    ws['C32'] = pbo_awal_2024
+    ws['C33'] = pbo_akhir_2024
+    
+    # Kolom D (31 Des 2025)
+    ws['D32'] = pbo_awal_2025                                   # Mengambil dari PBO Akhir 2024
+    ws['D33'] = total_pbo_2025                                  # PBO Akhir 2025 murni
+    ws['D34'] = total_csc
     ws['D35'] = total_biaya_bunga
 
-    # Ringkasan Kewajiban Bersih
-    ws['D61'] = total_pbo_akhir                                 # Nilai Kini Kewajiban Pada Akhir Tahun
-    ws['D65'] = total_pbo_akhir                                 # Kewajiban Bersih
+    # -------------------------------------------------------------------------
+    # B. ISIAN TABEL KEWAJIBAN BERSIH (BARIS 60–65)
+    # -------------------------------------------------------------------------
+    # Kolom C (31 Des 2024)
+    ws['C61'] = pbo_akhir_2024
+    ws['C65'] = pbo_akhir_2024
+
+    # Kolom D (31 Des 2025)
+    ws['D61'] = total_pbo_2025
+    ws['D65'] = total_pbo_2025
 
     # -------------------------------------------------------------------------
-    # 🔥 FIX: RINGKASAN BIAYA BERSIH (P&L) LENGKAP KESELURUHAN (Cell D68 - D79)
+    # C. ISIAN TABEL BIAYA BERSIH (BARIS 68–79)
     # -------------------------------------------------------------------------
     ws['D68'] = total_csc
     ws['D69'] = total_biaya_bunga
-    ws['D72'] = biaya_jasa_lalu_calc                            # Biaya Jasa Lalu = D33 - D34
+    ws['D72'] = biaya_jasa_lalu_calc
     ws['D74'] = transfer_masuk
     ws['D75'] = transfer_keluar
     ws['D76'] = kelebihan_pembayaran
-
-    # Total Keseluruhan Nilai di Bagian Biaya Bersih (D79)
-    total_biaya_bersih_keseluruhan = (
-        total_csc + 
-        total_biaya_bunga + 
-        biaya_jasa_lalu_calc + 
-        transfer_masuk - 
-        transfer_keluar + 
-        kelebihan_pembayaran
-    )
-    ws['D79'] = total_biaya_bersih_keseluruhan                  # Hasil total akurat (misal: 199.967.448)
+    ws['D79'] = total_csc + total_biaya_bunga + biaya_jasa_lalu_calc + transfer_masuk - transfer_keluar + kelebihan_pembayaran
 
     # -------------------------------------------------------------------------
-    # 6. REKONSILIASI KEWAJIBAN
+    # D. ISIAN TABEL REKONSILIASI KEWAJIBAN (BARIS 81–94)
     # -------------------------------------------------------------------------
-    ws['D82'] = total_pbo_awal                                  # Nilai Kini Kewajiban awal tahun
-    ws['D83'] = total_csc                                       # Biaya Jasa Kini
-    ws['D84'] = total_biaya_bunga                               # Biaya Bunga
-    ws['D85'] = pembayaran_pesangon                             # Pembayaran Manfaat
-    ws['D88'] = biaya_jasa_lalu_calc                            # Biaya Jasa Lalu
-    ws['D89'] = transfer_masuk                                  # Transfer Masuk NKKIP
-    ws['D90'] = transfer_keluar                                 # Transfer Keluar NKKIP
-    ws['D91'] = kelebihan_pembayaran                            # Kelebihan Pembayaran
-    ws['D93'] = gain_loss_final                                 # Gain/Loss Aktuaria
-    ws['D94'] = total_pbo_akhir                                 # Nilai Kini Kewajiban Akhir (2025)
+    # Kolom C (31 Des 2024)
+    ws['C82'] = pbo_awal_2024
+    ws['C94'] = pbo_akhir_2024
+
+    # Kolom D (31 Des 2025)
+    ws['D82'] = pbo_awal_2025                                   # Mengambil dari PBO Akhir 2024
+    ws['D83'] = total_csc
+    ws['D84'] = total_biaya_bunga
+    ws['D85'] = pembayaran_pesangon
+    ws['D88'] = biaya_jasa_lalu_calc
+    ws['D89'] = transfer_masuk
+    ws['D90'] = transfer_keluar
+    ws['D91'] = kelebihan_pembayaran
+    ws['D93'] = gain_loss_final
+    ws['D94'] = total_pbo_2025                                  # PBO Akhir 2025 murni
 
     # Simpan workbook ke memory buffer
     output_buffer = io.BytesIO()
@@ -571,7 +590,7 @@ try:
     with open("data/file/template_output.xlsx", "rb") as f:
         template_bytes = f.read()
 
-    # Rakit kamus data kontekstual dari hasil kalkulasi aktif
+    # kamus data kontekstual dari hasil kalkulasi aktif
     context_data = {
         'nama_perusahaan': nama_perusahaan if 'nama_perusahaan' in locals() and nama_perusahaan else "ARTHA SOLUTIONS INDONESIA",
         'tahun_val': 2025,
@@ -584,15 +603,16 @@ try:
         'rata_usia': df_puc_final['Usia'].mean() if 'Usia' in df_puc_final.columns else 0.0,
         'rata_masa_kerja': df_puc_final['Masa Kerja'].mean() if 'Masa Kerja' in df_puc_final.columns else 0.0,
         
-        # Parameter Arus Dana & Mutasi
         'pembayaran_pesangon': pembayaran_pesangon,
         'kelebihan_pembayaran': kelebihan_pembayaran,
         'transfer_masuk_nkkip': transfer_masuk_nkkip,
         'transfer_keluar_nkkip': transfer_keluar_nkkip,
         
-        # 🔥 FIX: Ambil PBO Awal & PBO Akhir Murni Hasil Kalkulasi Sistem
-        'total_pbo_awal': pbo_awal,
-        'total_pbo_akhir': total_pbo,   # <-- Menggunakan total_pbo hasil hitungan PUC murni
+        # 🔥 Oper nilai inputan dari sidebar ke context_data
+        'total_pbo_awal': pbo_awal,       # Input Nilai Awal Tahun (Sidebar)
+        'input_pbo_akhir': pbo_akhir,     # Input Nilai Akhir Tahun (Sidebar)
+        
+        'total_pbo_akhir': total_pbo,     # Hasil Hitungan PBO 2025 Murni
         'total_csc': total_csc,
         'total_biaya_bunga': total_biaya_bunga,
         'keuntungan_kerugian_aktuaria': keuntungan_kerugian_aktuaria
