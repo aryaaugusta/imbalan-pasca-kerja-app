@@ -78,7 +78,7 @@ transfer_keluar_nkkip = st.sidebar.number_input(
 # =========================================================================
 # DEFINISI WINDOW POP-UP DETAIL PUC PER KARYAWAN
 # =========================================================================
-@st.dialog("🔍 Detail Rumus PUC Aktuaria", width="large")
+@st.dialog("🔍 Detail Perhitungan PUC Aktuaria", width="large")
 def tampilkan_modal_puc(row_karyawan):
     st.write(f"### Karyawan: **{row_karyawan['Nama Karyawan']}**")
     st.caption("Berikut adalah breakdown komponen formula PUC murni untuk dibandingkan dengan Excel:")
@@ -623,7 +623,7 @@ try:
 
     # Render Tombol Unduh
     st.download_button(
-        label="📄 Unduh Laporan Laporan Pengakuan & Pengukuran Excel (.xlsx)",
+        label="📄 Unduh Laporan Aktuaria dalam file Excel (.xlsx)",
         data=excel_data,
         file_name=f"Laporan-Aktuaria-PSAK-Atribusi-UUCK-{nama_perusahaan.replace(' ', '_')}-31-Des-2025.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
